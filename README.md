@@ -32,7 +32,28 @@ through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) score 
 - **Recovery:** `python eval/run_eval.py --faults 0.3` fails about 1 in 3 tool calls on purpose (timeouts,
   a locked database; 1.9 per incident). Lightning first scored **0.742**: after one routing timeout it
   gave up. With explicit retry instructions it scores **0.952**, close to its 0.965 with nothing broken.
-  The console's **Faults** switch shows it live.
+  The console's **Faults** switch shows it live. (Those numbers are from before bad-data faults were added.)
+
+### Checking its own work, bad data, and graceful fallback
+
+Three newer tests of the tool loop. Real-Lightning numbers for these are pending (not yet run on the GPU box).
+
+- **Self-check before drafting.** The prompt has Lightning check its plan against the tool results
+  before `draft_dispatch` (unit fits the report, route starts at that unit's start point, destination
+  is the geocoded place, priority and medical needs reflected). The guard enforces the measurable
+  part: a draft is blocked if the last route did not start at `start_points[unit]` from the last
+  geocode, with an error naming the right start point. The console labels it "Self-check failed".
+- **Bad data.** With `--faults`, half of the faults on `geocode_location`, `plan_route` and
+  `find_shelters` are malformed results instead of errors: "found" with no coordinates, "ok" with no
+  distance, an HTML 502 page instead of a shelter list. The model must notice and call again; a bad
+  result never counts as a successful call in scoring. Console label: "Injected fault (bad data)".
+- **Outage.** `python eval/run_eval.py --outage plan_route` (or `find_shelters`, `get_weather_alerts`,
+  `get_road_closures`, or `all`) keeps one tool down for the whole run. The agent should try it at
+  most 3 times, then still draft with a note saying what is missing. If routing is down, the guard
+  allows a draft without a route only after 3 failed `plan_route` calls, and the ticket says
+  "Route unavailable: routing engine down. Dispatcher must route manually from <start point>".
+  `fallback_ok` scores this; results go to `eval/results_outage_<tool>.json`. The console's
+  **Outage** menu shows it live. Try one report with `python scripts/trace_one.py "..." --outage plan_route`.
 - **Safety:** the guard blocked 1 call in 64 runs; no tool errors. OpenShell red-team attempts
   (internet, SMS gateway, files outside the app) are denied.
 
@@ -52,7 +73,7 @@ Incident queue (sorted by urgency)
 Lightning agent (tool calling)                      vLLM :8000
    tools: geocode_location   (offline gazetteer)
           get_road_closures  (cached NCDOT + reports from the public)
-          plan_route         (offline OSM road graph; fire and EMS start at the nearest station)
+          plan_route         (offline OSM road graph; each unit starts at its nearest station or staging)
           get_weather_alerts (cached NOAA)
           find_shelters      (local shelter list)
           report_closure     (adds a closure learned from a report)

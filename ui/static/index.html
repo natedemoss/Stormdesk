@@ -21,8 +21,18 @@
       <label class="check" title="Schema and ordering checks before every tool call">
         <input type="checkbox" id="guard" checked> Guard
       </label>
-      <label class="check" title="Fail about 1 in 3 tool calls on purpose (timeouts, locked database) to show the agent recovering">
+      <label class="check" title="Fail about 1 in 3 tool calls on purpose (timeouts, locked database, bad data) to show the agent recovering">
         <input type="checkbox" id="faults"> Faults
+      </label>
+      <label class="check" title="Take one tool down for the whole run to show the agent falling back">
+        Outage
+        <select id="outage" class="bar-select">
+          <option value="">none</option>
+          <option value="plan_route">routing</option>
+          <option value="find_shelters">shelters</option>
+          <option value="get_weather_alerts">weather</option>
+          <option value="get_road_closures">closures</option>
+        </select>
       </label>
       <span class="clock" id="clock"></span>
     </div>

@@ -53,7 +53,7 @@ function age(iso) {
 }
 const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "");
 const lastOk = (trace, tool) => {
-  for (let i = trace.length - 1; i >= 0; i--) if (trace[i].tool === tool && !("error" in trace[i].result)) return trace[i].result;
+  for (let i = trace.length - 1; i >= 0; i--) if (trace[i].tool === tool && !("error" in trace[i].result) && !trace[i].result._fault) return trace[i].result;
   return null;
 };
 const forModel = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith("_")));
@@ -62,6 +62,11 @@ const tidy = (name) => String(name || "").replace(" (SAMPLE)", "").replace(" (po
 function summarize(t) {
   const r = t.result, a = t.args;
   if ("error" in r) return r.error;
+  if (r._malformed) return {
+    geocode_location: "Says found, but returned no coordinates. Unusable, so the agent must call again.",
+    plan_route: "Says ok, but returned no distance or route. Unusable, so the agent must call again.",
+    find_shelters: "Returned an HTML error page instead of a shelter list. Unusable, so the agent must call again.",
+  }[t.tool] || "Unusable result.";
   switch (t.tool) {
     case "geocode_location": return r.found ? `${r.name}, ${r.county}. Confidence ${r.confidence}.` : "No match in the local gazetteer. Needs a landmark or road name.";
     case "get_road_closures": {
@@ -238,7 +243,8 @@ async function drawMap() {
   let pts;
   if (inc && inc.found) {
     pts = [staging, [inc.lon, inc.lat], ...path, ...blocked];
-    if (shel[0]) pts.push([shel[0].lon, shel[0].lat]);
+    // a far shelter would shrink the route (and its detour) to a few pixels; it stays listed
+    if (shel[0] && !(shel[0].distance_km > 10)) pts.push([shel[0].lon, shel[0].lat]);
   } else {
     pts = [staging, ...st.shelters.map((s) => [s.lon, s.lat]),
            ...st.closures.filter((c) => Math.abs(c.lat - home.lat) < 0.4 && Math.abs(c.lon - home.lon) < 0.4).map((c) => [c.lon, c.lat])];
@@ -425,8 +431,10 @@ function renderRouteCard(route) {
 // ------------------------------------------------------------------ agent pane
 function logItem(t, i) {
   const r = t.result;
-  const kind = r.blocked_by ? "blocked" : r._fault ? "fault" : ("error" in r ? "err" : t.guard === "off" ? "off" : "pass");
-  const label = { blocked: "Guard blocked", fault: "Injected fault", err: "Error", off: "No guard", pass: "OK" }[kind];
+  const kind = r._rule === "self_check" ? "check" : r.blocked_by ? "blocked" : r._outage ? "down"
+    : r._malformed ? "bad" : r._fault ? "fault" : ("error" in r ? "err" : t.guard === "off" ? "off" : "pass");
+  const label = { check: "Self-check failed", blocked: "Guard blocked", down: "Tool down", bad: "Injected fault (bad data)",
+    fault: "Injected fault", err: "Error", off: "No guard", pass: "OK" }[kind];
   const enter = S.running && i === S.trace.length - 1 ? " enter" : "";
   return `<li class="${kind}${enter}">
     <div class="lg-head"><span class="lg-n">${String(i + 1).padStart(2, "0")}</span><span class="lg-tool">${esc(t.tool)}<span class="lg-ms">${t.ms ?? ""}${t.ms != null ? " ms" : ""}</span></span><span class="lg-st ${kind}">${label}</span></div>
@@ -465,7 +473,7 @@ function ticketHTML(d) {
       <dt>Unit</dt><dd><span class="tk-unit">${esc(UNITS[p.unit_type] || p.unit_type)}</span>${UNIT_DESC[p.unit_type] ? `<div class="tk-desc">${esc(UNIT_DESC[p.unit_type])}</div>` : ""}</dd>
       <dt>Priority</dt><dd>${p.priority} of 5</dd>
       <dt>To</dt><dd>${esc(p.destination)}</dd>
-      <dt>Route</dt><dd>${esc(p.route)}</dd>
+      <dt>Route</dt><dd${/^route unavailable/i.test(p.route || "") ? ` class="tk-warn"` : ""}>${esc(p.route)}</dd>
       <dt>Notes</dt><dd>${esc(p.notes)}</dd>
     </dl>
     ${st === "pending_review" ? `<div class="tk-actions"><button class="btn ok" id="approve">Approve</button><button class="btn ghost" id="reject">Reject</button></div>` : ""}
@@ -572,7 +580,7 @@ async function runAgent() {
   S.running = true; S.trace = []; S.draft = null; S.final = ""; S.stats = null; S.userFrame = null;
   renderIncident(); renderAgent(); drawMap();
   try {
-    const r = await fetch(`/api/incidents/${S.selected}/run?guard=${$("#guard").checked}&faults=${$("#faults").checked ? 0.3 : 0}`, { method: "POST" });
+    const r = await fetch(`/api/incidents/${S.selected}/run?guard=${$("#guard").checked}&faults=${$("#faults").checked ? 0.3 : 0}&outage=${$("#outage").value}`, { method: "POST" });
     const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for (;;) {

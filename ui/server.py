@@ -154,10 +154,13 @@ def incident(iid: int):
 
 
 @app.post("/api/incidents/{iid}/run")
-def run_agent(iid: int, guard: bool = True, faults: float = 0.0):
+def run_agent(iid: int, guard: bool = True, faults: float = 0.0, outage: str = ""):
     """Runs the agent and streams one JSON line per tool call, then a done line.
-    faults: share of tool calls to fail on purpose (the console's Faults switch), to show recovery."""
+    faults: share of tool calls to fail on purpose (the console's Faults switch), to show recovery.
+    outage: a tool that is down for the whole run (the console's Outage menu), to show fallback."""
     faults = min(max(faults, 0.0), 0.5)
+    if outage and outage not in agent.OUTAGES:
+        raise HTTPException(400, f"outage must be one of {list(agent.OUTAGES)}")
     q = queue.Queue()
 
     def on_step(entry):
@@ -167,7 +170,7 @@ def run_agent(iid: int, guard: bool = True, faults: float = 0.0):
 
     def work():
         try:
-            res = agent.run(iid, use_guard=guard, on_step=on_step, fault_rate=faults)
+            res = agent.run(iid, use_guard=guard, on_step=on_step, fault_rate=faults, outage=outage or None)
             q.put({"type": "done", "final": res["final"], "seconds": res["seconds"],
                    "drafted": res["drafted"], "calls": len(res["trace"])})
         except Exception as e:  # surface it in the console instead of a dead stream

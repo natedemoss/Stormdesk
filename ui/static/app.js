@@ -99,15 +99,54 @@ function renderStatus() {
     const hours = ts ? (Date.now() - new Date(ts).getTime()) / 3600e3 : Infinity;
     return item(k, a ? `${a} old` : "not synced", hours < 6 ? "" : "warn");
   };
+  // the oldest of the synced feeds stands for all of them
+  const feeds = [st.sync.ncdot, st.sync.noaa, st.sync.shelters];
+  const oldest = feeds.includes(null) || feeds.includes(undefined) ? null
+    : feeds.reduce((a, b) => (new Date(a) < new Date(b) ? a : b));
+  const fd = fresh("Data", oldest);
   $("#status").innerHTML =
     item("Agent", mock ? "Mock, scripted" : "Nemotron 3.5 Lightning", mock ? "warn" : "") +
     item("Triage", mock ? "Mock, rules" : "Qwen3-1.7B LoRA", mock ? "warn" : "") +
-    fresh("NCDOT", st.sync.ncdot) + fresh("NWS", st.sync.noaa) + fresh("Shelters", st.sync.shelters) +
-    item("Network", "none needed", "good");
+    fd.replace("<dd", `<dd title="NCDOT ${age(st.sync.ncdot) || "never"} · NWS ${age(st.sync.noaa) || "never"} · shelters ${age(st.sync.shelters) || "never"}"`);
   const counties = st.counties || [];
   $("#county").textContent = counties.length > 1 ? `Western NC EOC · ${counties.length} counties` : `${counties[0] || "County"} County EOC`;
   $("#county").title = counties.join(", ");
+  renderStorm();
 }
+
+// The scenario band: the demo replays the first days after a hurricane. The counts are live,
+// from the cached data the agent's tools read.
+const SCENARIO = "Hurricane scenario · Day 2";
+function renderStorm() {
+  const st = S.state;
+  const names = (st.counties || []).map((c) => c.toLowerCase());
+  const alerts = (st.alerts || []).filter((a) => names.some((n) => (a.area || "").toLowerCase().includes(n)));
+  const events = [...new Set(alerts.map((a) => a.event))];
+  const closed = st.closures.length, reported = st.closures.filter((c) => !c.verified).length;
+  const space = st.shelters.filter((s) => s.capacity != null && s.capacity - (s.occupancy || 0) > 0).length;
+  const offline = S.sandbox?.in_sandbox;
+  const part = (b, t) => `<span><b>${b}</b> ${t}</span>`;
+  $("#storm").innerHTML = `<span class="storm-tag">${SCENARIO}</span>` +
+    part(offline ? "Offline" : "No internet needed", offline ? "sandbox, local models only" : "every tool reads the local cache") +
+    part(closed, `road closures${reported ? ` (${reported} reported by the public)` : ""}`) +
+    (alerts.length ? part(alerts.length, `NWS alerts: ${esc(events.slice(0, 2).join(", "))}`)
+      : `<span>No NWS alerts in the cached feed</span>`) +
+    part(space, `shelters with space of ${st.shelters.length} on file`);
+}
+
+function updateDemoOn() {  // what the Demo menu has switched away from normal, shown on its button
+  const on = [];
+  if (!$("#guard").checked) on.push("guard off");
+  if ($("#faults").checked) on.push("faults");
+  if ($("#outage").value) on.push(`${$("#outage").selectedOptions[0].textContent} down`);
+  $("#demo-on").textContent = on.join(" · ");
+  $("#demo-on").hidden = !on.length;
+}
+["guard", "faults", "outage"].forEach((id) => $("#" + id).addEventListener("change", updateDemoOn));
+updateDemoOn();
+document.addEventListener("click", (e) => {  // close the Demo menu on a click outside it
+  const m = $("#demo-menu"); if (m.open && !m.contains(e.target)) m.open = false;
+});
 setInterval(() => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 1000);
 
 // ------------------------------------------------------------------ queue
@@ -125,7 +164,7 @@ function renderQueue() {
       <div>
         <div class="row-top"><span class="row-cat">${esc(CATS[i.category] || i.category)}</span><span>${hhmm(i.created_at)}</span></div>
         <div class="row-text">${esc(i.raw_text)}</div>
-        <div class="row-foot"><span>#${i.id}</span><span>${esc(i.channel)}</span><span class="st-${i.status}">${i.status}</span>${i.flag ? `<span class="flag">${esc(i.flag)}</span>` : ""}</div>
+        <div class="row-foot"><span>#${i.id}</span>${i.channel === "nws-helene" ? `<span class="real" title="A real report from the National Weather Service storm log during Hurricane Helene">Real · NWS Helene log</span>` : `<span>${esc(i.channel)}</span>`}<span class="st-${i.status}">${i.status}</span>${i.flag ? `<span class="flag">${esc(i.flag)}</span>` : ""}</div>
       </div></li>`;
   }).join("") || `<li class="empty">No reports yet.</li>`;
   if (html !== S.queueHTML) { $("#rows").innerHTML = html; S.queueHTML = html; }
@@ -144,7 +183,7 @@ function renderIncident() {
   box.className = `incident u${i.urgency}`;
   const label = S.running ? "Running" : S.trace.length ? "Run again" : "Run agent";
   box.innerHTML = `<span class="urg">${i.urgency}</span>
-    <div><div class="inc-meta"><b>#${i.id} ${esc(CATS[i.category] || i.category)}</b> · ${esc(i.channel)} · received ${hhmm(i.created_at)}${i.flag ? ` · <span class="flag" title="A safety rule raised this report; the model ranked it lower">${esc(i.flag)}</span>` : ""}</div>
+    <div><div class="inc-meta"><b>#${i.id} ${esc(CATS[i.category] || i.category)}</b> · ${i.channel === "nws-helene" ? `<span class="real">Real · NWS Helene log</span>` : esc(i.channel)} · received ${hhmm(i.created_at)}${i.flag ? ` · <span class="flag" title="A safety rule raised this report; the model ranked it lower">${esc(i.flag)}</span>` : ""}</div>
       <div class="inc-text">${esc(i.raw_text)}</div></div>
     <button class="btn signal" id="run" ${S.running ? "disabled" : ""}>${label}</button>`;
   $("#run").onclick = runAgent;
@@ -487,6 +526,7 @@ async function loadSandbox() {
   const flag = $("#sandbox-flag");
   flag.className = "tab-flag " + (S.sandbox.in_sandbox ? "on" : "off");
   flag.textContent = S.sandbox.in_sandbox ? "ON" : "OFF";
+  if (S.state) renderStorm();
   if (S.tab === "sandbox") renderSandbox();
 }
 

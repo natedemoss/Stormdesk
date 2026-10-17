@@ -17,26 +17,32 @@
     </div>
     <dl class="status" id="status"></dl>
     <div class="bar-right">
-      <button class="bar-btn" id="reset" title="Clear reports and drafts, then reload the demo reports">Reset demo</button>
-      <label class="check" title="Schema and ordering checks before every tool call">
-        <input type="checkbox" id="guard" checked> Guard
-      </label>
-      <label class="check" title="Fail about 1 in 3 tool calls on purpose (timeouts, locked database, bad data) to show the agent recovering">
-        <input type="checkbox" id="faults"> Faults
-      </label>
-      <label class="check" title="Take one tool down for the whole run to show the agent falling back">
-        Outage
-        <select id="outage" class="bar-select">
-          <option value="">none</option>
-          <option value="plan_route">routing</option>
-          <option value="find_shelters">shelters</option>
-          <option value="get_weather_alerts">weather</option>
-          <option value="get_road_closures">closures</option>
-        </select>
-      </label>
+      <details class="demo-menu" id="demo-menu">
+        <summary>Demo <span class="demo-on" id="demo-on"></span></summary>
+        <div class="menu">
+          <label class="check" title="Schema and ordering checks before every tool call">
+            <input type="checkbox" id="guard" checked> Guard <small>checks every tool call</small>
+          </label>
+          <label class="check" title="Fail about 1 in 3 tool calls on purpose (timeouts, locked database, bad data) to show the agent recovering">
+            <input type="checkbox" id="faults"> Faults <small>break 1 in 3 tool calls</small>
+          </label>
+          <label class="check" title="Take one tool down for the whole run to show the agent falling back">
+            Outage
+            <select id="outage" class="bar-select">
+              <option value="">none</option>
+              <option value="plan_route">routing</option>
+              <option value="find_shelters">shelters</option>
+              <option value="get_weather_alerts">weather</option>
+              <option value="get_road_closures">closures</option>
+            </select>
+          </label>
+          <button class="bar-btn" id="reset" type="button" title="Clear reports and drafts, then reload the demo reports">Reset demo</button>
+        </div>
+      </details>
       <span class="clock" id="clock"></span>
     </div>
   </header>
+  <div class="storm" id="storm" aria-live="polite"></div>
 
   <main class="grid">
     <section class="col queue">

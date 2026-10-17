@@ -212,12 +212,35 @@ function projector(f, hasCard, fill = false) {
   const [vx0, vy1] = inv(0, 0), [vx1, vy0] = inv(W, H);
   return { P, W, H, pxPerM: s / 110540, view: { x0: vx0, x1: vx1, y0: vy0, y1: vy1 } };
 }
+// Roads come for a box padded half a view on every side and snapped to a grid, so panning
+// within that margin reuses the same request instead of fetching (and blanking) again.
+function roadBox(v) {
+  const span = Math.max(v.x1 - v.x0, v.y1 - v.y0);
+  const step = Math.pow(2, Math.ceil(Math.log2(span / 2)));  // grid cell about half the view
+  const snap = (n, up) => (up ? Math.ceil(n / step) : Math.floor(n / step)) * step;
+  // the view width decides which road classes show; quantize it so small zooms share a request
+  const detail = span < 0.3 ? 0.1 : 1;
+  return { x0: snap(v.x0 - span / 2), y0: snap(v.y0 - span / 2), x1: snap(v.x1 + span / 2, true),
+           y1: snap(v.y1 + span / 2, true), detail };
+}
 async function roadsFor(v) {
-  const key = [v.x0, v.y0, v.x1, v.y1].map((n) => n.toFixed(3)).join(",");
+  const b = roadBox(v);
+  const key = [b.x0, b.y0, b.x1, b.y1, b.detail].join(",");
   if (!S.roadsCache.has(key)) {
-    S.roadsCache.set(key, api(`/api/roads?minlon=${v.x0}&minlat=${v.y0}&maxlon=${v.x1}&maxlat=${v.y1}`).catch(() => ({ segments: [] })));
+    S.roadsCache.set(key, api(`/api/roads?minlon=${b.x0}&minlat=${b.y0}&maxlon=${b.x1}&maxlat=${b.y1}&view=${b.detail}`)
+      .catch(() => ({ segments: [] })));
   }
   return S.roadsCache.get(key);
+}
+function drawRoads(P, roads) {  // casings first, then fills, so crossings read like a printed road map
+  const d = ["", "", ""];
+  for (const [a, b, c, e, cls] of roads.segments) {
+    const [x1, y1] = P(a, b), [x2, y2] = P(c, e);
+    d[cls ?? 2] += `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
+  const g = $("#roads");
+  if (g) g.innerHTML = `<path class="r2c" d="${d[2]}"/><path class="r1c" d="${d[1]}"/><path class="r0c" d="${d[0]}"/>`
+    + `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/>`;
 }
 const pathD = (P, coords) => "M" + coords.map((c) => P(c[0], c[1]).map((n) => n.toFixed(1)).join(" ")).join("L");
 
@@ -380,17 +403,12 @@ async function drawMap() {
   S.animateRoute = false;
   renderRouteCard(route);
 
+  // redraw the roads already loaded at the new position right away, so nothing blanks while
+  // the next box loads (most small pans and zooms need no new box at all)
+  if (S.lastRoads) drawRoads(P, S.lastRoads);
   const roads = await roadsFor(view);
   if (S.frame !== f) return;
-  const d = ["", "", ""];
-  for (const [a, b, c, e, cls] of roads.segments) {
-    const [x1, y1] = P(a, b), [x2, y2] = P(c, e);
-    d[cls ?? 2] += `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
-  }
-  const g = $("#roads");
-  // casings first, then fills, so crossings read like a printed road map
-  if (g) g.innerHTML = `<path class="r2c" d="${d[2]}"/><path class="r1c" d="${d[1]}"/><path class="r0c" d="${d[0]}"/>`
-    + `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/>`;
+  if (roads !== S.lastRoads) { S.lastRoads = roads; drawRoads(P, roads); }
   $("#attrib").textContent = roads.graph ? "Roads © OpenStreetMap contributors, cached locally" : "No road graph cached";
 }
 

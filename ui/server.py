@@ -120,14 +120,16 @@ def road_table():
 
 
 @app.get("/api/roads")
-def roads(minlon: float, minlat: float, maxlon: float, maxlat: float):
+def roads(minlon: float, minlat: float, maxlon: float, maxlat: float, view: float = 0.0):
     """Road segments inside a bounding box, from the cached OSM graph. Like any map, a wide
-    view leaves out local streets; they show below about 0.3 degrees (30 km) across."""
+    view leaves out local streets; they show below about 0.3 degrees (30 km) across.
+    view: the width actually on screen, when the box is padded beyond it (the console fetches
+    a margin around the view so small pans need no new request)."""
     import numpy as np
     if tools._graph() is None:
         return {"segments": [], "graph": False}
     t = road_table()
-    span = max(maxlon - minlon, maxlat - minlat)
+    span = view or max(maxlon - minlon, maxlat - minlat)
     max_class = 2 if span < 0.3 else 1
     in_a = (t[:, 0] >= minlon) & (t[:, 0] <= maxlon) & (t[:, 1] >= minlat) & (t[:, 1] <= maxlat)
     in_b = (t[:, 2] >= minlon) & (t[:, 2] <= maxlon) & (t[:, 3] >= minlat) & (t[:, 3] <= maxlat)

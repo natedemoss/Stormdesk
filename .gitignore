@@ -16,3 +16,5 @@ eval/results.json
 PLAN.md
 BREV_DAY.md
 CLAUDE.md
+data/train.db*
+training/data_agent/

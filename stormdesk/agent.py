@@ -204,8 +204,11 @@ def for_model(out: dict) -> dict:
     return {k: v for k, v in out.items() if not k.startswith("_")}
 
 
-def run(incident_id: int, use_guard: bool = True, on_step=None) -> dict:
-    """on_step(entry) is called after every tool call, so the UI can stream the trace."""
+def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: float = 0.2) -> dict:
+    """on_step(entry) is called after every tool call, so the UI can stream the trace.
+
+    The result's "messages" is the whole conversation in chat format (with the model's reasoning,
+    when vLLM returns it), used by training/collect_trajectories.py to build fine-tuning data."""
     conn = db.connect()
     inc = dict(conn.execute("SELECT * FROM incidents WHERE id=?", (incident_id,)).fetchone())
     guard = Guard()
@@ -214,26 +217,32 @@ def run(incident_id: int, use_guard: bool = True, on_step=None) -> dict:
             {"role": "user", "content": f"Incident #{inc['id']} (category {inc['category']}, "
                                         f"urgency {inc['urgency']}/5): {inc['raw_text']}"}]
     client = None if MOCK_LLM else OpenAI(base_url=AGENT_BASE_URL, api_key="local")
+    transcript = list(msgs)  # msgs plus the model's reasoning; msgs itself is what the model is sent
     t0 = time.time()
-    final = ""
+    final, final_reasoning = "", None
 
     for step in range(MAX_AGENT_STEPS):
         tm = time.time()
+        content, reasoning = "", None
         if MOCK_LLM:
             nxt = _mock_turn(step, inc, results)
             if nxt is None or nxt[0] == "__final__":
                 final = nxt[1] if nxt else "Draft dispatch created and waiting for human review (mock run)."
                 break
             calls = [{"id": f"m{step}", "name": nxt[0], "args": nxt[1]}]
+            tool_calls = [{"id": c["id"], "type": "function",
+                           "function": {"name": c["name"], "arguments": json.dumps(c["args"])}} for c in calls]
         else:
             r = client.chat.completions.create(model=AGENT_MODEL, messages=msgs, tools=TOOLS,
-                                               tool_choice="auto", temperature=0.2)
+                                               tool_choice="auto", temperature=temperature)
             m = r.choices[0].message
+            reasoning = getattr(m, "reasoning_content", None) or getattr(m, "reasoning", None)
             if not m.tool_calls:
-                final = m.content or ""
+                final, final_reasoning = m.content or "", reasoning
                 break
-            msgs.append({"role": "assistant", "content": m.content or "",
-                         "tool_calls": [tc.model_dump() for tc in m.tool_calls]})
+            content = m.content or ""
+            tool_calls = [tc.model_dump() for tc in m.tool_calls]
+            msgs.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
             calls = []
             for tc in m.tool_calls:
                 try:
@@ -241,6 +250,8 @@ def run(incident_id: int, use_guard: bool = True, on_step=None) -> dict:
                 except json.JSONDecodeError:
                     args = {"__unparseable__": tc.function.arguments}
                 calls.append({"id": tc.id, "name": tc.function.name, "args": args})
+        transcript.append({"role": "assistant", "content": content, "tool_calls": tool_calls,
+                           **({"reasoning_content": reasoning} if reasoning else {})})
         model_ms = round((time.time() - tm) * 1000)
 
         for c in calls:
@@ -261,10 +272,13 @@ def run(incident_id: int, use_guard: bool = True, on_step=None) -> dict:
             trace.append(entry)
             if on_step:
                 on_step(entry)
+            tool_msg = {"role": "tool", "tool_call_id": c["id"], "content": json.dumps(for_model(out))}
+            transcript.append(tool_msg)
             if not MOCK_LLM:
-                msgs.append({"role": "tool", "tool_call_id": c["id"],
-                             "content": json.dumps(for_model(out))})
+                msgs.append(tool_msg)
 
+    transcript.append({"role": "assistant", "content": final,
+                       **({"reasoning_content": final_reasoning} if final_reasoning else {})})
     elapsed = round(time.time() - t0, 2)
     draft = conn.execute("SELECT id FROM dispatch_queue WHERE incident_id=? ORDER BY id DESC LIMIT 1",
                          (incident_id,)).fetchone()
@@ -272,7 +286,7 @@ def run(incident_id: int, use_guard: bool = True, on_step=None) -> dict:
         conn.execute("UPDATE dispatch_queue SET trace_json=? WHERE id=?", (json.dumps(trace), draft["id"]))
         conn.commit()
     return {"incident_id": incident_id, "final": final, "trace": trace,
-            "seconds": elapsed, "drafted": bool(draft)}
+            "seconds": elapsed, "drafted": bool(draft), "messages": transcript}
 
 
 if __name__ == "__main__":

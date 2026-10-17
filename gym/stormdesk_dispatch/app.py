@@ -155,9 +155,9 @@ class StormDeskDispatchResourcesServer(SimpleResourcesServer):
                 err = sess.guard.check(name, args)
                 if err:
                     return {"error": err, "blocked_by": "guard"}
-            # tools.* read the module-level connection. Swapping it and calling the tool with no
+            # tools.* read this thread's connection. Swapping it and calling the tool with no
             # await in between keeps each call on its own rollout's copy of the cache.
-            tools._conn = sess.conn
+            tools._local.conn = sess.conn
             try:
                 out = tools.REGISTRY[name](**args)
             except Exception as e:  # tool failures go back to the model, as in the app

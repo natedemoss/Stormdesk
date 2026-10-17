@@ -99,6 +99,21 @@ python training/eval_triage.py --model http://localhost:8001/v1   # F1 vs base m
 ```
 
 
+## Improving Lightning on dispatch (synthetic practice data)
+
+```bash
+python training/gen_agent_tasks.py          # 175 practice incidents -> training/agent_tasks.jsonl
+python training/collect_trajectories.py     # run Lightning on them, keep only perfect runs
+```
+
+`training/agent_tasks.jsonl` is synthetic and published here. Each report comes from a hand-written
+template for one incident type (rescue, shelter, medical, fire, welfare, supply, road, multi-step,
+vague, noise, prompt injection), filled with a real road name from the OpenStreetMap gazetteer in the
+six counties. No model wrote them. Roads named in `eval/incidents.jsonl` are excluded, so the 62 eval
+cases stay unseen. The collector grades each run with the same scoring as the eval and the NeMo Gym
+environment (`stormdesk/scoring.py`) and keeps a run only if every check passed with no guard blocks
+or tool errors. Those runs are the fine-tuning set; the eval before and after measures the change.
+
 ## Triage safety nets
 
 The triage model is right about 3 times in 4 (macro F1 0.755), and it learned from tweets about

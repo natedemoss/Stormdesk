@@ -4,6 +4,7 @@ keeps working when the network is down. Each returns a JSON-serializable dict.
 import json
 import math
 import re
+import threading
 import uuid
 from functools import lru_cache
 
@@ -13,15 +14,21 @@ from stormdesk.tool_schemas import STAGING
 
 CLOSURE_RADIUS_M = 150  # road nodes this close to a closure are treated as blocked
 KNOWN_SPACE_KM = 15  # a shelter with confirmed space is preferred over closer ones within this distance
-_conn = None
+_local = threading.local()  # one connection per thread: a shared one breaks under parallel runs
+_init_lock = threading.Lock()
+_initialized = False
 
 
 def conn():
-    global _conn
-    if _conn is None:
-        _conn = db.connect()
-        db.init(_conn)
-    return _conn
+    global _initialized
+    c = getattr(_local, "conn", None)
+    if c is None:
+        c = _local.conn = db.connect()
+        with _init_lock:
+            if not _initialized:
+                db.init(c)
+                _initialized = True
+    return c
 
 
 def haversine_m(lat1, lon1, lat2, lon2) -> float:

@@ -209,13 +209,15 @@ function mapSize() { const r = $("#map").getBoundingClientRect(); return { W: r.
 function fitFrame(points) {
   const lons = points.map((p) => p[0]), lats = points.map((p) => p[1]);
   const x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
-  const m = Math.max(x1 - x0, y1 - y0, 0.02) * 0.1 + 0.004;
+  // a small margin, and never closer than about 1 km across, so a short route fills the map
+  const m = Math.max(x1 - x0, y1 - y0, 0.01) * 0.06 + 0.002;
   return { x0: x0 - m, x1: x1 + m, y0: y0 - m, y1: y1 + m };
 }
 function projector(f, hasCard, fill = false) {
   const { W, H } = mapSize();
   // an automatic fit leaves room for the route card and legend; a panned/zoomed view fills the box
-  const [padL, padR, padT, padB] = fill ? [0, 0, 0, 0] : [40, hasCard ? 310 : 40, 56, 70];
+  // (the route card sits in the top-right corner, so it takes room above the route, not a whole side)
+  const [padL, padR, padT, padB] = fill ? [0, 0, 0, 0] : [40, 40, hasCard ? 150 : 56, 70];
   const k = Math.cos(((f.y0 + f.y1) / 2) * Math.PI / 180);
   // a narrow window can leave less room than the padding; keep the drawable area positive
   const aw = Math.max(W - padL - padR, 120), ah = Math.max(H - padT - padB, 120);
@@ -322,8 +324,10 @@ async function drawMap() {
     // a far shelter would shrink the route (and its detour) to a few pixels; it stays listed
     if (shel[0] && !(shel[0].distance_km > 10)) pts.push([shel[0].lon, shel[0].lat]);
   } else {
-    pts = [staging, ...st.shelters.map((s) => [s.lon, s.lat]),
-           ...st.closures.filter((c) => Math.abs(c.lat - home.lat) < 0.4 && Math.abs(c.lon - home.lon) < 0.4).map((c) => [c.lon, c.lat])];
+    // overview: the home county around the staging point, not every shelter in six counties
+    const near = (p) => Math.abs(p.lat - home.lat) < 0.18 && Math.abs(p.lon - home.lon) < 0.22;
+    pts = [staging, ...st.shelters.filter(near).map((s) => [s.lon, s.lat]),
+           ...st.closures.filter(near).map((c) => [c.lon, c.lat])];
   }
   const f = S.userFrame || fitFrame(pts);
   S.frame = f;

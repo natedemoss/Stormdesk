@@ -840,6 +840,11 @@ async function refresh() {
 async function boot() {
   await refresh();
   renderAgent(); drawMap(); loadSandbox();
+  // Link options for screenshots and bookmarks: ?incident=12 opens that report, ?theme=dark|light.
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("theme") === "dark" || qs.get("theme") === "light") setTheme(qs.get("theme"));
+  const want = Number(qs.get("incident"));
+  if (want && S.state.incidents.some((i) => i.id === want)) await select(want);
   setInterval(() => { if (!S.running) refresh().catch(() => {}); }, 2500);
   setInterval(() => { if (S.tab === "sandbox") loadSandbox(); }, 4000);
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawMap, 150); });

@@ -15,7 +15,7 @@
   --closed: #b42318;
   --unv: #b7791f;
   --ok: #2f7a3b;
-  --map-bg: #eceee6;
+  --map-bg: #f1ede4;
   --u5: #b42318; --u4: #c2410c; --u3: #a16207; --u2: #4b5563; --u1: #9ca3af;
   --sans: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: "Cascadia Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
@@ -166,12 +166,18 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map-zoom button + button { border-top: 1px solid var(--rule-2); }
 .map-zoom button:hover { background: var(--rule-2); }
 .map-zoom .fit { width: auto; padding: 0 4px; font-size: 11px; }
-.map .r2 { stroke: #babdb1; stroke-width: .9; fill: none; }
-.map .r1 { stroke: #9a9e91; stroke-width: 1.7; fill: none; }
-.map .r0 { stroke: #767a6c; stroke-width: 3; fill: none; }
-.map .r0c { stroke: #f6f4ec; stroke-width: 1.2; fill: none; }
-.map .route-case { stroke: #fff; stroke-width: 8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.map .route { stroke: var(--route); stroke-width: 4.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+/* roads: a casing under a fill, like a printed road map. r2 local, r1 collector, r0 highway */
+.map .r2c, .map .r1c, .map .r0c, .map .r2, .map .r1, .map .r0 { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.map .r2c { stroke: #cdc6b8; stroke-width: 2.2; }
+.map .r2 { stroke: #fdfcf8; stroke-width: 1.1; }
+.map .r1c { stroke: #c4ad6a; stroke-width: 3.8; }
+.map .r1 { stroke: #f7eeb8; stroke-width: 2.4; }
+.map .r0c { stroke: #b9874a; stroke-width: 5.6; }
+.map .r0 { stroke: #f2c88a; stroke-width: 3.8; }
+/* a soft blue halo under the route (an SVG filter here stopped Chrome from drawing the route) */
+.map .route-glow { stroke: rgba(31, 79, 209, .18); stroke-width: 16; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.map .route-case { stroke: #fff; stroke-width: 9; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.map .route { stroke: var(--route); stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .map .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.6s ease-in-out forwards; }
 .map .straight { stroke: var(--ink-2); stroke-width: 2; stroke-dasharray: 6 5; fill: none; }
 .map .legline { stroke: var(--route); stroke-width: 1.5; stroke-dasharray: 2 4; fill: none; }
@@ -190,7 +196,9 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map .station { fill: #fff; stroke: var(--ink); stroke-width: 1.5; opacity: .7; }
 .map .station.start { fill: var(--ink); stroke: #fff; opacity: 1; }
 .map .inc { fill: var(--signal); stroke: #fff; stroke-width: 2.5; }
-.map .inc-ring { fill: none; stroke: var(--signal); stroke-width: 1.5; }
+.map .inc-ring { fill: none; stroke: var(--signal); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
+  animation: pulse 2s ease-out infinite; }
+@keyframes pulse { 0% { transform: scale(.7); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
 .map text { font: 11.5px var(--sans); fill: var(--ink); paint-order: stroke; stroke: var(--map-bg); stroke-width: 3.5px; stroke-linejoin: round; }
 .map text.lbl-b { font-weight: 700; font-size: 12.5px; }
 .map text.lbl-c { fill: var(--closed); font-size: 11px; font-weight: 600; }

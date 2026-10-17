@@ -325,7 +325,7 @@ async function drawMap() {
       out.push(`<path class="straight" d="${pathD(P, path)}"/>`);
     } else {
       const anim = S.animateRoute ? " draw" : "";
-      out.push(`<path class="route-case${anim}" pathLength="1" d="${pathD(P, path)}"/><path class="route${anim}" pathLength="1" d="${pathD(P, path)}"/>`);
+      out.push(`<path class="route-glow${anim}" pathLength="1" d="${pathD(P, path)}"/><path class="route-case${anim}" pathLength="1" d="${pathD(P, path)}"/><path class="route${anim}" pathLength="1" d="${pathD(P, path)}"/>`);
       if (inc && inc.found) {  // off-road legs to the first and last road node
         out.push(`<path class="legline" d="${pathD(P, [staging, path[0]])}"/><path class="legline" d="${pathD(P, [path[path.length - 1], [inc.lon, inc.lat]])}"/>`);
       }
@@ -388,7 +388,9 @@ async function drawMap() {
     d[cls ?? 2] += `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
   }
   const g = $("#roads");
-  if (g) g.innerHTML = `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/><path class="r0c" d="${d[0]}"/>`;
+  // casings first, then fills, so crossings read like a printed road map
+  if (g) g.innerHTML = `<path class="r2c" d="${d[2]}"/><path class="r1c" d="${d[1]}"/><path class="r0c" d="${d[0]}"/>`
+    + `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/>`;
   $("#attrib").textContent = roads.graph ? "Roads © OpenStreetMap contributors, cached locally" : "No road graph cached";
 }
 

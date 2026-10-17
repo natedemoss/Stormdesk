@@ -99,7 +99,7 @@ stormdesk/          core package
   scoring.py        eval checks, shared with the NeMo Gym verifier
 sync/               scripts that refresh caches while internet is up
 training/           HumAID prep, Unsloth LoRA fine-tune, triage eval
-eval/               64 tagged test incidents + agent benchmark
+eval/               69 tagged test incidents (4 are real Helene storm reports) + agent benchmark
 gym/                NeMo Gym environment (same tools, guard and scoring)
 ui/server.py        dispatcher console (FastAPI + ui/static, fully offline)
 scripts/            vLLM serve commands, demo report streamer
@@ -190,9 +190,10 @@ A raised report stays in the queue and shows why (`possible medical emergency`,
 - NCDOT road events via DriveNC (free developer key): https://drivenc.gov/help/endpoint/event
   (the old TIMS endpoint was retired May 27, 2026)
 - NOAA/NWS alerts: https://api.weather.gov/alerts/active?area=NC
+- Real Hurricane Helene reports: NWS Local Storm Reports from the Greenville-Spartanburg office, Sept 25-30, 2024 (public domain), via the Iowa Environmental Mesonet: https://mesonet.agron.iastate.edu/lsr/ (`sync/fetch_helene_reports.py`, `data/helene_lsr.jsonl`). They load into the demo queue on channel `nws-helene`, word for word.
 - FEMA Open Shelters (ESF#6, synced with Red Cross): https://gis.fema.gov/arcgis/rest/services/NSS/OpenShelters/FeatureServer
 - NC OneMap Potential Emergency Shelters (NC CGIA): https://services.nconemap.gov/secure/rest/services/NC1Map_Emergency_Law_Enforcement/FeatureServer/2
-- OpenStreetMap via osmnx: roads, place names, fire stations and ambulance bases (Geofabrik NC extract for full offline use)
+- OpenStreetMap via osmnx: roads, place names, fire stations, ambulance bases and police/sheriff stations (Geofabrik NC extract for full offline use)
 
 Files named `*_sample.*` and `data/demo_reports.jsonl` are **sample/demo data**, not real records.
 The synced cache (`data/stormdesk.db`, `data/cache/`) holds real public data.

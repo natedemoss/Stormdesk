@@ -1,5 +1,5 @@
 ---
-# Hugging Face model card for the StormDesk triage model (README.md of ndemoss28/stormdesk-triage).
+# Hugging Face model card for the StormDesk triage model (README.md of ndemoss28/stormdesks-triage).
 license: cc-by-nc-sa-4.0
 base_model: Qwen/Qwen3-1.7B
 datasets:
@@ -50,7 +50,7 @@ print(r.choices[0].message.content)  # {"category": "requests_or_urgent_needs"}
 ```
 
 ```bash
-vllm serve ndemoss28/stormdesk-triage --served-model-name stormdesk-triage --max-model-len 1024
+vllm serve ndemoss28/stormdesks-triage --served-model-name stormdesk-triage --max-model-len 1024
 ```
 
 In StormDesk, urgency (1 to 5) is not predicted by the model. It is the category's base urgency

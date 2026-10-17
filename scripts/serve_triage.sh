@@ -5,7 +5,7 @@
 # GPU_UTIL is a fraction of the whole GPU: 0.12 is about 10 GB on an 80 GB card. On a 24 GB card
 # (L4, A10) 0.12 is too small for the 3.4 GB of weights, so use GPU_UTIL=0.5 there.
 source "$(dirname "$0")/cuda_env.sh"
-MODEL=${MODEL:-ndemoss28/stormdesk-triage}
+MODEL=${MODEL:-ndemoss28/stormdesks-triage}
 vllm serve "$MODEL" \
   --port 8001 \
   --served-model-name stormdesk-triage \

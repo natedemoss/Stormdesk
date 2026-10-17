@@ -24,17 +24,11 @@ python3 -m venv .venv-serve
 .venv-serve/bin/pip install -q -U pip
 .venv-serve/bin/pip install -q "vllm>=0.27.1" -r requirements.txt "huggingface_hub[cli]"
 
-echo "== Hugging Face login (the triage model is private)"
-if ! .venv-serve/bin/hf auth whoami >/dev/null 2>&1; then
-  echo "Paste a read token from huggingface.co/settings/tokens (delete it after the event)."
-  .venv-serve/bin/hf auth login
-fi
-
 echo "== Weight downloads (background, logs/download_*.log)"
 dl() { nohup .venv-serve/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('$1')" \
   > "logs/download_$2.log" 2>&1 & }
 dl nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16 lightning
-dl ndemoss28/stormdesk-triage triage
+dl ndemoss28/stormdesks-triage triage
 
 echo "== CUDA toolkit matching vLLM's torch build"
 CUDA_VER=$(.venv-serve/bin/python -c "import torch; print(torch.version.cuda)")

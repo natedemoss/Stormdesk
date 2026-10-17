@@ -124,7 +124,7 @@ def check_models():
         cat = json.loads(r.choices[0].message.content)["category"]
         ok = cat in CATEGORIES
         report("PASS" if ok else "FAIL", "Triage classification", f"{cat} in {(time.time() - t) * 1000:.0f} ms",
-               "check the served model is ndemoss28/stormdesk-triage")
+               "check the served model is ndemoss28/stormdesks-triage")
     except Exception as e:
         report("FAIL", "Triage classification", f"{type(e).__name__}: {str(e)[:120]}", "see the triage vLLM log")
 

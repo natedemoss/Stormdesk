@@ -13,30 +13,32 @@ When Hurricane Helene hit western NC in 2024, internet and cell service were dow
 
 Measured on a Brev H200 with both models served by vLLM, real Lightning, guard on.
 
-| `eval/run_eval.py` | First run (62 cases) | After fixes (64 cases) |
+| `eval/run_eval.py` | First run (62 cases) | Current (65 cases) |
 |---|---|---|
-| Mean reward | 0.899 | **0.965** |
-| Every check passed | 80.6% | **90.6%** |
-| Right unit drafted | 83.7% | **95.6%** |
-| Road damage reports | 0.569 | **0.944** |
+| Mean reward | 0.899 | **0.970** |
+| Every check passed | 80.6% | **93.8%** |
+| Road damage reports | 0.569 | **1.0** |
 | Prompt-injection reports | 0.875 | **1.0** |
-| Fire/EMS routed from the right station | n/a | **2 of 2** |
+| Units routed from the right station | n/a | **3 of 3** |
+| With ~1.7 tool failures per incident (`--faults 0.3`, incl. bad data) | 0.742 | **0.918** |
+| With routing down the whole run (`--outage plan_route`) | n/a | **0.965**; fell back gracefully in 96% |
 
 The per-check scores showed the weak spots (road damage, incidents outside McDowell County);
-the fixes were in the geocoder and the agent's instructions, not the model. The same 64 tasks run
-through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) score **0.967**.
+the fixes were in the geocoder and the agent's instructions, not the model. The same tasks run
+through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) scored **0.967** (64 cases).
+The 0.742 under faults is the first fault run (plain errors only): Lightning gave up after one routing
+timeout. The current 0.918 is with explicit retry rules and a harder mix that includes bad data.
 
 - **Triage fine-tune:** macro F1 **0.755** vs 0.416 for the untuned Qwen3-1.7B on the HumAID test split.
 - **Speed:** triage 0.46 s, Lightning's life-at-risk second opinion 2.2 s (in parallel), Lightning's
   first tool call 0.42 s, about 9 s from report to draft.
 - **Recovery:** `python eval/run_eval.py --faults 0.3` fails about 1 in 3 tool calls on purpose (timeouts,
-  a locked database; 1.9 per incident). Lightning first scored **0.742**: after one routing timeout it
-  gave up. With explicit retry instructions it scores **0.952**, close to its 0.965 with nothing broken.
-  The console's **Faults** switch shows it live. (Those numbers are from before bad-data faults were added.)
+  a locked database, bad data). The console's **Faults** switch shows it live.
 
 ### Checking its own work, bad data, and graceful fallback
 
-Three newer tests of the tool loop. Real-Lightning numbers for these are pending (not yet run on the GPU box).
+Three tests of the tool loop, each measured on real Lightning (table above). In 65 normal runs the guard
+blocked 2 drafts, which Lightning then fixed.
 
 - **Self-check before drafting.** The prompt has Lightning check its plan against the tool results
   before `draft_dispatch` (unit fits the report, route starts at that unit's start point, destination

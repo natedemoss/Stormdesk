@@ -427,7 +427,7 @@ async function drawMap() {
   const roads = await roadsFor(view);
   if (S.frame !== f) return;
   if (roads !== S.lastRoads) { S.lastRoads = roads; drawRoads(P, roads); }
-  $("#attrib").textContent = roads.graph ? "Roads © OpenStreetMap contributors, cached locally" : "No road graph cached";
+  $("#attrib").textContent = roads.graph ? "Roads © OpenStreetMap" : "No road graph cached";
 }
 
 // Pan by dragging, zoom with the wheel or the +/- buttons, "Fit" (or double-click) goes back to the

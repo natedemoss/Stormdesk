@@ -179,7 +179,8 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .rc-note { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--rule); color: var(--closed); }
 .rc-warn { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--rule); color: var(--unv); }
 .legend {
-  position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: 70%;
+  /* wraps before the map credit at the bottom right (about 280px wide) */
+  position: absolute; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: calc(100% - 310px);
   background: rgba(251, 250, 247, .94); border: 1px solid var(--rule-2); padding: 6px 10px; font-size: 11.5px; color: var(--ink-2);
 }
 .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -191,7 +192,7 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .k-shelter { width: 9px; height: 9px; background: var(--ok); }
 .k-pot { width: 9px; height: 9px; border: 2px solid var(--ok); background: #fff; }
 .k-station { width: 8px; height: 8px; border: 2px solid var(--ink); background: #fff; transform: rotate(45deg); }
-.attrib { position: absolute; right: 12px; bottom: 12px; font-size: 10.5px; color: var(--mute); background: rgba(236,238,230,.85); padding: 1px 4px; }
+.attrib { position: absolute; right: 12px; bottom: 12px; font-size: 10.5px; color: var(--mute); background: rgba(236,238,230,.85); padding: 1px 4px; white-space: nowrap; }
 
 /* ------------------------------------------------------------ right column */
 .tabs { display: flex; border-bottom: 1px solid var(--ink); }

@@ -20,7 +20,7 @@ need a location first, sympathy posts need nothing, and reports carrying injecte
 | `report_closure` | Record a new closure described in the report (unverified) |
 | `get_weather_alerts` | Active NWS alerts for a county |
 | `find_shelters` | Nearest shelters with space; pets and medical filters |
-| `plan_route` | Road route from the staging point that avoids every closure |
+| `plan_route` | Road route that avoids every closure, from the nearest fire station or ambulance base for fire and EMS, else the county staging point |
 | `draft_dispatch` | Write a DRAFT plan for human review (cannot send anything) |
 
 A guard (JSON schema plus ordering: geocode before routing, routing before drafting) runs before
@@ -30,9 +30,9 @@ between rollouts.
 
 ## Tasks and reward
 
-55 tasks in `data/validation.jsonl`, built from StormDesk's `eval/incidents.jsonl` by
+64 tasks in `data/validation.jsonl`, built from StormDesk's `eval/incidents.jsonl` by
 `build_data.py`, tagged rescue, medical, fire, welfare, supply, shelter, road, multi_step,
-vague, adversarial, noise and out_of_area. `data/example.jsonl` has one per tag.
+vague, adversarial, noise, out_of_area, multi_county and station. `data/example.jsonl` has one per tag.
 
 The verifier reads the tool-call trace and checks, where the task asks for it:
 

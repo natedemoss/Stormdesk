@@ -160,6 +160,8 @@ def geocode_location(text: str) -> dict:
     if note:
         out["note"] = note
     out["staging"] = staging_for(best["county"], best["lat"], best["lon"])
+    if stations := stations_for(best["lat"], best["lon"]):
+        out["stations"] = stations
     return out
 
 
@@ -188,6 +190,40 @@ def staging_for(county: str, lat: float, lon: float) -> dict:
     same = [p for p in pts if p["county"] == county]
     p = same[0] if same else min(pts, key=lambda p: haversine_m(lat, lon, p["lat"], p["lon"]))
     return {"name": p["name"], "lat": p["lat"], "lon": p["lon"]}
+
+
+# ---------------------------------------------------------------- stations
+EMS_BASE_MAX_KM = 25  # farther than this, the nearest fire station answers medical calls first
+
+
+@lru_cache(maxsize=1)
+def _stations() -> tuple:
+    """Fire stations and ambulance bases from OSM (sync/sync_stations.py); empty if never synced."""
+    try:
+        return tuple(dict(r) for r in conn().execute("SELECT name, kind, county, lat, lon FROM stations"))
+    except Exception:  # noqa: BLE001 - a database from before stations existed
+        return ()
+
+
+def _nearest(kind: str, lat: float, lon: float):
+    rows = [s for s in _stations() if s["kind"] == kind]
+    if not rows:
+        return None
+    s = min(rows, key=lambda s: haversine_m(lat, lon, s["lat"], s["lon"]))
+    return {"name": s["name"], "lat": s["lat"], "lon": s["lon"],
+            "distance_km": round(haversine_m(lat, lon, s["lat"], s["lon"]) / 1000, 1)}
+
+
+def stations_for(lat: float, lon: float) -> dict:
+    """Where a fire or EMS unit starts: the nearest fire station and ambulance base. Where no
+    ambulance base is mapped nearby, the nearest fire station (NC fire departments run medical
+    first response). Straight-line nearest; plan_route then finds the open road from it."""
+    fire = _nearest("fire", lat, lon)
+    ems = _nearest("ems", lat, lon)
+    if fire and (not ems or ems["distance_km"] > EMS_BASE_MAX_KM):
+        ems = {**fire, "note": f"No ambulance base mapped within {EMS_BASE_MAX_KM} km; the nearest fire "
+                               "station responds first. Note that EMS transport comes from farther away."}
+    return {k: v for k, v in (("fire", fire), ("ems", ems)) if v}
 
 
 # ---------------------------------------------------------------- closures
@@ -343,7 +379,7 @@ def plan_route(from_lat: float, from_lon: float, to_lat: float, to_lon: float) -
         km = haversine_m(from_lat, from_lon, to_lat, to_lon) / 1000
         return {"ok": True, "mode": "straight_line_fallback", "distance_km": round(km, 1),
                 "note": "Road graph not built. Run sync/build_road_graph.py.",
-                "_path": [[from_lon, from_lat], [to_lon, to_lat]]}
+                "_path": [[from_lon, from_lat], [to_lon, to_lat]], "_from": [from_lon, from_lat]}
     import networkx as nx
     blocked = _blocked_nodes(closures)
     # The route we would take with no closures, to show what the detour avoided.
@@ -374,7 +410,7 @@ def plan_route(from_lat: float, from_lon: float, to_lat: float, to_lon: float) -
             roads.append(name)
     return {"ok": True, "mode": "road_graph", "distance_km": round(meters / 1000, 1),
             "via": roads[:12], "closures_avoided": len(closures), **reroute,
-            "_path": _path_coords(H, path), **blocked_extra}
+            "_path": _path_coords(H, path), "_from": [from_lon, from_lat], **blocked_extra}
 
 
 # ---------------------------------------------------------------- dispatch

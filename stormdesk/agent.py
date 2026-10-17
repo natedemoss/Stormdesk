@@ -40,8 +40,10 @@ When a responder is needed:
 3. get_weather_alerts for the county.
 4. If people must leave home, find_shelters. Set has_pets when they have animals, and
    needs_medical for oxygen, dialysis, insulin, wheelchairs or nursing home residents.
-5. plan_route from the staging point that geocode_location returned to the incident.
-   It avoids every known closure.
+5. Pick the unit (list below), then plan_route to the incident from where that unit starts,
+   using what geocode_location returned: fire from stations.fire, ems from stations.ems, every
+   other unit (or when there is no station) from staging. It avoids every known closure.
+   Name the starting station in the route_summary.
 6. draft_dispatch with ONE unit:
    - swift_water_rescue: people trapped by moving or rising water, swept away, in a river,
      or on a roof in a flood
@@ -165,12 +167,14 @@ def _mock_turn(step, incident, results):
     text = incident["raw_text"].lower()
     shel = (results.get("find_shelters", {}).get("shelters") or [{}])[0]
     route = results.get("plan_route", {})
-    summary = f"{route.get('distance_km', '?')} km"
+    unit = _mock_unit(text)
+    start = (loc.get("stations") or {}).get(unit) if unit in ("fire", "ems") else None
+    start = start or loc.get("staging", STAGING)
+    summary = f"From {start['name']}: {route.get('distance_km', '?')} km"
     if route.get("via"):
         summary += " via " + ", ".join(route["via"][:3])
     if route.get("rerouted"):
         summary += ", detouring around a closure"
-    unit = _mock_unit(text)
     needs = [what for word, what in MOCK_MEDICAL_NOTES if word in text]
     notes = f"Nearest shelter with space: {shel.get('name', 'n/a')}"
     if needs and unit != "ems":
@@ -188,7 +192,7 @@ def _mock_turn(step, incident, results):
                            "has_pets": any(w in text for w in ("dog", "cat", "pet")),
                            "needs_medical": any(w in text for w in ("oxygen", "dialysis", "wheelchair",
                                                                     "nursing home", "insulin"))}),
-        ("plan_route", {"from_lat": loc.get("staging", STAGING)["lat"], "from_lon": loc.get("staging", STAGING)["lon"],
+        ("plan_route", {"from_lat": start["lat"], "from_lon": start["lon"],
                         "to_lat": loc.get("lat"), "to_lon": loc.get("lon")}),
         ("draft_dispatch", {"incident_id": incident["id"], "unit_type": unit,
                             "destination": loc.get("name", "unknown"),

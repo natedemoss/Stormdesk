@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS shelters (
 CREATE TABLE IF NOT EXISTS places (      -- offline gazetteer
     name TEXT, county TEXT, lat REAL, lon REAL
 );
+CREATE TABLE IF NOT EXISTS stations (    -- where fire and EMS units start (OpenStreetMap)
+    id TEXT PRIMARY KEY,
+    name TEXT, kind TEXT,                -- kind: 'fire' | 'ems'
+    county TEXT, lat REAL, lon REAL
+);
 CREATE TABLE IF NOT EXISTS incidents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     raw_text TEXT, channel TEXT,

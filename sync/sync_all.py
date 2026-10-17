@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from stormdesk.config import COUNTIES  # noqa: E402
 
-FULL = ["build_road_graph.py", "build_gazetteer.py"]
+FULL = ["build_road_graph.py", "build_gazetteer.py", "sync_stations.py"]
 DAILY = ["sync_ncdot.py", "sync_noaa.py", "sync_shelters.py"]
 
 

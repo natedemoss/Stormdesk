@@ -331,6 +331,95 @@ td.res.good { color: var(--ok); } td.res.bad { color: var(--closed); } td.res.sk
 @keyframes logline { from { background: #fff3c4; } to { background: transparent; } }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ============================================================ refined light theme
+   Floating cards on a cool grey canvas, soft shadows, rounded corners, calmer rules.
+   Everything above still applies; this block only restyles. */
+:root {
+  --paper: #eceff3; --sheet: #ffffff; --ink: #1b2430; --ink-2: #3b4656; --mute: #6b7685; --faint: #9aa3ae;
+  --rule: #e6e9ee; --rule-2: #d3d8df; --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 6px 18px rgba(16, 24, 40, .06);
+}
+/* top bar: light, quiet */
+.bar { background: #fff; color: var(--ink); border-bottom: 1px solid var(--rule); }
+.mark { border-radius: 3px; }
+.sep { color: var(--faint); }
+.status dt { color: var(--faint); }
+.status dd { color: var(--ink); }
+.status dd.warn { color: #b45309; }
+.status dd.good { color: var(--ok); }
+.clock { color: var(--ink-2); }
+.demo-menu summary { border-color: var(--rule-2); border-radius: 8px; color: var(--ink); background: #fff; }
+.demo-menu[open] summary { background: #f3f5f8; }
+.demo-menu summary::after { color: var(--faint); }
+.demo-on { color: #b45309; }
+.demo-menu .menu { background: #fff; color: var(--ink); border-color: var(--rule); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(16, 24, 40, .16); }
+.demo-menu .menu .check small { color: var(--mute); }
+.bar-select { background: #fff; color: var(--ink); border-color: var(--rule-2); border-radius: 6px; }
+.bar-btn { border-radius: 8px; padding: 5px 12px; }
+/* scenario band: warm tint instead of a dark bar */
+.storm { background: linear-gradient(90deg, #fff1e8, #fde6d8); color: #7a2a0c; border-bottom: 1px solid #f5cfb9; }
+.storm b { color: #5a1d0a; }
+.storm-tag { border-radius: 6px; }
+/* columns become floating cards */
+.grid { padding: 12px; gap: 12px; background: var(--paper); }
+.col { border-right: 0; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; background: var(--sheet); }
+.col-head { border-bottom: 1px solid var(--rule); padding: 14px 16px 12px; }
+h2 { color: var(--ink-2); }
+/* queue: one card per report */
+.rows { padding: 10px; background: #f7f8fa; }
+.row { margin-bottom: 8px; border: 1px solid var(--rule); border-radius: 10px; background: #fff; transition: box-shadow .15s, border-color .15s; }
+.row:hover { background: #fff; box-shadow: 0 4px 12px rgba(16, 24, 40, .08); }
+.row.sel { background: #f5f8ff; border-color: #9db4f0; box-shadow: 0 0 0 2px rgba(31, 79, 209, .18); }
+.row.closed { background: #fbfbfc; }
+.urg { border-radius: 8px; }
+.row.closed .urg { border-color: var(--rule-2); }
+.row-foot { color: var(--faint); }
+.compose { border-top: 1px solid var(--rule); background: #fff; }
+select, textarea { border-radius: 8px; border-color: var(--rule-2); }
+textarea:focus, select:focus { border-color: var(--route); box-shadow: 0 0 0 3px rgba(31, 79, 209, .12); }
+.btn { border-radius: 8px; }
+.btn.ghost { border-color: var(--rule-2); }
+.btn.ghost:hover { background: #f3f5f8; }
+/* incident strip and map furniture */
+.incident { background: #fff; border-bottom: 1px solid var(--rule); }
+.incident .urg { border-radius: 10px; }
+.route-card { border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); background: #fff; }
+.legend { border: 1px solid var(--rule); border-radius: 10px; background: rgba(255, 255, 255, .94); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
+.map-zoom { border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: #fff; box-shadow: 0 2px 8px rgba(16, 24, 40, .08); }
+.map-zoom button + button { border-top-color: var(--rule); }
+.map-zoom button:hover { background: #f3f5f8; }
+.attrib { border-radius: 4px; background: rgba(255, 255, 255, .8); }
+/* right column */
+.tabs { border-bottom: 1px solid var(--rule); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--route); }
+.tab-flag { border-radius: 4px; }
+/* agent log as a timeline: a line down the left, one dot per tool call, colored by result */
+.log { border-top: 0; position: relative; }
+.log::before { content: ""; position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: var(--rule); border-radius: 1px; }
+.log li { border-bottom: 0; padding: 7px 6px 7px 0; position: relative; border-radius: 8px; }
+.log li:hover { background: #f7f8fa; }
+.log li::before {
+  content: ""; position: absolute; left: 4px; top: 12px; width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; border: 2.5px solid var(--ok); box-sizing: content-box;
+}
+.log li.blocked::before, .log li.down::before, .log li.check::before { border-color: var(--closed); }
+.log li.fault::before, .log li.bad::before, .log li.err::before { border-color: var(--unv); }
+.log li.off::before { border-color: var(--faint); }
+.lg-n { visibility: hidden; }
+.log pre { border-radius: 8px; border-color: var(--rule); background: #f6f7f9; }
+.final { border-left-color: var(--route); background: #f6f8fc; border-radius: 0 8px 8px 0; padding: 8px 12px; }
+/* dispatch card */
+.ticket { border: 1px solid var(--rule-2); border-radius: var(--radius); box-shadow: var(--shadow); }
+.tk-head { border-bottom: 1px solid var(--rule); background: #f8f9fb; border-radius: var(--radius) var(--radius) 0 0; }
+.tk-body dt { border-right-color: var(--rule); }
+.tk-body dt, .tk-body dd { border-bottom-color: var(--rule); }
+.tk-actions { border-radius: 0 0 var(--radius) var(--radius); border-top-color: var(--rule); }
+/* sandbox pane */
+.sb-state { border: 1px solid var(--rule); border-radius: 10px; }
+.prover { border-radius: 8px; border-color: var(--rule); background: #f6f7f9; }
+table.sb th { border-bottom-color: var(--rule-2); }
+.toast { border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 24, 40, .25); }
+
 @media (max-width: 1300px) {
   .grid { grid-template-columns: 290px minmax(0, 1fr) 360px; }
   .status div:nth-child(n+4) { display: none; }

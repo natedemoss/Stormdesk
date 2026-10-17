@@ -33,8 +33,12 @@ from nemo_gym.base_resources_server import (
 from nemo_gym.reward_profile import Stat
 from nemo_gym.server_utils import SESSION_ID_KEY
 
-# The StormDesk repo: STORMDESK_ROOT, else the repo this file lives in (symlinks resolved).
-STORMDESK_ROOT = Path(os.getenv("STORMDESK_ROOT") or Path(__file__).resolve().parents[2])
+# The StormDesk repo: STORMDESK_ROOT, else the path install_into_gym.sh recorded next to this
+# file, else the repo this file lives in.
+_ROOT_FILE = Path(__file__).resolve().parent / ".stormdesk_root"
+STORMDESK_ROOT = Path(os.getenv("STORMDESK_ROOT")
+                      or (_ROOT_FILE.read_text().strip() if _ROOT_FILE.exists() else "")
+                      or Path(__file__).resolve().parents[2])
 sys.path.insert(0, str(STORMDESK_ROOT))
 
 from stormdesk import scoring, tools  # noqa: E402

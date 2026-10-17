@@ -30,7 +30,9 @@ through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) score 
 - **Speed:** triage 0.46 s, Lightning's life-at-risk second opinion 2.2 s (in parallel), Lightning's
   first tool call 0.42 s, about 9 s from report to draft.
 - **Recovery:** `python eval/run_eval.py --faults 0.3` fails about 1 in 3 tool calls on purpose (timeouts,
-  a locked database) to measure how the agent recovers; the console's **Faults** switch shows it live.
+  a locked database; 1.9 per incident). Lightning first scored **0.742**: after one routing timeout it
+  gave up. With explicit retry instructions it scores **0.952**, close to its 0.965 with nothing broken.
+  The console's **Faults** switch shows it live.
 - **Safety:** the guard blocked 1 call in 64 runs; no tool errors. OpenShell red-team attempts
   (internet, SMS gateway, files outside the app) are denied.
 

@@ -1,0 +1,92 @@
+# LoRA fine-tune of Nemotron 3.5 Lightning on StormDesk dispatch runs, one GPU (H200, 141 GB).
+#
+# Based on NVIDIA's recipe examples/llm_finetune/nemotron/nemotron_nano_v3_5_lightning_hellaswag_peft.yaml
+# in NVIDIA-NeMo/Automodel (written for 8 GPUs). Changed for one GPU: ep_size 1 and the "torch" expert
+# dispatcher (DeepEP is for spreading experts over GPUs). Data: training/data_agent/sft.jsonl from
+# collect_trajectories.py (OpenAI messages with tool calls and reasoning, plus the tool list).
+# Not yet run: memory fit on one H200 and the step count are first guesses.
+#
+#   bash training/train_lightning_lora.sh
+
+recipe: TrainFinetuneRecipeForNextTokenPrediction
+
+step_scheduler:
+  global_batch_size: 8          # gradient accumulation over 8 single examples
+  local_batch_size: 1
+  ckpt_every_steps: 1000
+  val_every_steps: 1000
+  max_steps: 60                 # about 2 passes over ~250 kept runs; adjust to the kept count
+
+dist_env:
+  backend: nccl
+  timeout_minutes: 10
+
+rng:
+  _target_: nemo_automodel.components.training.rng.StatefulRNG
+  seed: 1111
+  ranked: true
+
+model:
+  _target_: nemo_automodel.NeMoAutoModelForCausalLM.from_pretrained
+  pretrained_model_name_or_path: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16
+  num_nextn_predict_layers: 2   # same MTP settings as NVIDIA's recipe
+  mtp_use_repeated_layer: true
+  mtp_loss_scaling_factor: 0.1
+  backend:
+    _target_: nemo_automodel.components.models.common.BackendConfig
+    attn: te
+    linear: te
+    rms_norm: te
+    experts: torch_mm
+    dispatcher: torch
+
+checkpoint:
+  enabled: true
+  checkpoint_dir: training/outputs/lightning_lora/
+  model_save_format: safetensors
+  save_consolidated: final
+
+peft:
+  _target_: nemo_automodel.components._peft.lora.PeftConfig
+  exclude_modules: ["*.out_proj"]  # from NVIDIA's recipe: Mamba out_proj uses custom kernels, LoRA does not work there
+  dim: 8
+  alpha: 32
+  use_triton: True
+
+distributed:
+  strategy: fsdp2
+  dp_size: none
+  tp_size: 1
+  cp_size: 1
+  ep_size: 1
+  sequence_parallel: false
+
+loss_fn:
+  _target_: nemo_automodel.components.loss.masked_ce.MaskedCrossEntropy
+
+dataset:
+  _target_: nemo_automodel.components.datasets.llm.agent_chat.make_agent_chat_dataset
+  path: training/data_agent/sft.jsonl
+  seq_length: 8192
+  filter_overlong: true           # drop runs longer than seq_length instead of cutting them
+  drop_history_reasoning_content: true  # keep only the last turn's reasoning, as the chat template does
+
+packed_sequence:
+  packed_sequence_size: 0
+
+dataloader:
+  _target_: torchdata.stateful_dataloader.StatefulDataLoader
+  collate_fn: nemo_automodel.components.datasets.utils.default_collater
+  shuffle: True
+
+optimizer:
+  _target_: torch.optim.AdamW
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  lr: 1.0e-4
+  weight_decay: 0.1
+
+lr_scheduler:
+  lr_decay_style: cosine
+  lr_warmup_steps: 5
+  min_lr: 1.0e-5

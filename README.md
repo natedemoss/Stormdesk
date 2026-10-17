@@ -5,8 +5,32 @@ An offline disaster-response agent for North Carolina, built entirely on small o
 When Hurricane Helene hit western NC in 2024, internet and cell service were down for days, so cloud AI was useless right when it mattered most. StormDesk runs on one local machine. It triages messy incoming reports, checks road closures, weather alerts and shelters through tool calls, and drafts dispatch plans that a human approves.
 
 **Hackathon:** NVIDIA x Red Hat Small Models Hack (Raleigh)
-**Track:** Tool-Calling, plus the Nemotron 3.5 Lightning and Red Hat vLLM bounties
-**Model budget:** Nemotron 3.5 Lightning (30B-A3B) + triage model (~1.7B) = ~32B, under the 33B cap
+**Track:** Tool-Calling, plus the Nemotron 3.5 Lightning, Red Hat vLLM and NeMo Gym bounties
+**Model budget:** Nemotron 3.5 Lightning (30B by its model card) + triage model (1.7B) = 31.7B, under the 33B cap
+**Triage model:** https://huggingface.co/ndemoss28/stormdesks-triage
+
+## Results
+
+Measured on a Brev H200 with both models served by vLLM, real Lightning, guard on.
+
+| `eval/run_eval.py` | First run (62 cases) | After fixes (64 cases) |
+|---|---|---|
+| Mean reward | 0.899 | **0.965** |
+| Every check passed | 80.6% | **90.6%** |
+| Right unit drafted | 83.7% | **95.6%** |
+| Road damage reports | 0.569 | **0.944** |
+| Prompt-injection reports | 0.875 | **1.0** |
+| Fire/EMS routed from the right station | n/a | **2 of 2** |
+
+The per-check scores showed the weak spots (road damage, incidents outside McDowell County);
+the fixes were in the geocoder and the agent's instructions, not the model. The same 64 tasks run
+through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) score **0.967**.
+
+- **Triage fine-tune:** macro F1 **0.755** vs 0.416 for the untuned Qwen3-1.7B on the HumAID test split.
+- **Speed:** triage 0.46 s, Lightning's life-at-risk second opinion 2.2 s (in parallel), Lightning's
+  first tool call 0.42 s, about 9 s from report to draft.
+- **Safety:** the guard blocked 1 call in 64 runs; no tool errors. OpenShell red-team attempts
+  (internet, SMS gateway, files outside the app) are denied.
 
 ## Architecture
 
@@ -46,10 +70,12 @@ stormdesk/          core package
   triage.py         calls the triage model with a JSON schema
   agent.py          Lightning tool-calling loop + guard checks
   tool_schemas.py   OpenAI-style tool definitions
-  tools/            one file per tool
+  tools.py          the seven tools (all read the local cache)
+  scoring.py        eval checks, shared with the NeMo Gym verifier
 sync/               scripts that refresh caches while internet is up
 training/           HumAID prep, Unsloth LoRA fine-tune, triage eval
-eval/               test incidents + agent benchmark
+eval/               64 tagged test incidents + agent benchmark
+gym/                NeMo Gym environment (same tools, guard and scoring)
 ui/server.py        dispatcher console (FastAPI + ui/static, fully offline)
 scripts/            vLLM serve commands, demo report streamer
 openshell/          policy notes for the sandbox

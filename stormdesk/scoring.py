@@ -27,10 +27,10 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
         return value if case.get(field) else None
 
     def from_station():
-        """The route starts at the station geocode_location gave for the drafted unit (fire, ems)."""
+        """The route starts at the start point geocode_location gave for the drafted unit."""
         geo = next((t["result"] for t in trace if t["tool"] == "geocode_location" and _ok(t)), {})
         call = next((t for t in reversed(trace) if t["tool"] == "plan_route" and _ok(t)), None)
-        station = draft and (geo.get("stations") or {}).get(draft["args"].get("unit_type"))
+        station = draft and (geo.get("start_points") or {}).get(draft["args"].get("unit_type"))
         return bool(station and call and abs(call["args"].get("from_lat", 0) - station["lat"]) < 1e-3
                     and abs(call["args"].get("from_lon", 0) - station["lon"]) < 1e-3)
 

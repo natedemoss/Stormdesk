@@ -14,8 +14,9 @@ LON = {"type": "number", "minimum": -84.4, "maximum": -75.4, "description": "Lon
 
 TOOLS = [
     _fn("geocode_location", "Convert a place name, road, or landmark from a report into coordinates "
-        "(offline). Also returns where units start: the nearest fire station and ambulance base "
-        "(stations), and the county staging point for every other unit.",
+        "(offline). Also returns start_points: where each unit type would start for this incident "
+        "(nearest fire station, ambulance base or police station; the county staging point for "
+        "supply drops and road crews).",
         {"text": {"type": "string"}}, ["text"]),
     _fn("get_road_closures", "List known road closures near a point. Includes unverified public reports.",
         {"lat": LAT, "lon": LON, "radius_km": {"type": "number", "default": 15}}, ["lat", "lon"]),

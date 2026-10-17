@@ -30,6 +30,8 @@ DISPATCH = ["geocode_location", "get_road_closures", "plan_route", "draft_dispat
 SHELTER = ["geocode_location", "find_shelters", "plan_route", "draft_dispatch"]
 ROAD = ["geocode_location", "report_closure"]
 WATER = ["swift_water_rescue", "high_water_vehicle"]
+# Units that start from a mapped station (fire, ambulance or police), not the county staging point.
+STATION_UNITS = {"fire", "ems", "swift_water_rescue", "high_water_vehicle", "welfare_check"}
 
 # (tag, template, labels). {road} is a real road; {who}, {n} and {town} are filled at random.
 TEMPLATES = [
@@ -127,8 +129,8 @@ def main():
         text = text[0].upper() + text[1:]
         labels = dict(labels)
         tools = labels.pop("tools", DISPATCH)
-        if labels.get("expect_unit") in (["fire"], ["ems"]):
-            labels["expect_station"] = True  # fire and EMS route from the nearest station
+        if labels.get("expect_unit") and set(labels["expect_unit"]) <= STATION_UNITS:
+            labels["expect_station"] = True  # every acceptable unit routes from a real station
         tasks.append({"text": text, "expect_tools": tools, **labels, "tag": tag, "county": county})
     tasks += [{"text": t, "expect_tools": [], "expect_ask_for_location": True, "tag": "vague"} for t in VAGUE]
     tasks += [{"text": t, "expect_tools": [], "expect_no_draft": True, "tag": "noise"} for t in NOISE]

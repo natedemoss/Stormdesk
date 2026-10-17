@@ -173,8 +173,7 @@ def geocode_location(text: str) -> dict:
     if note:
         out["note"] = note
     out["staging"] = staging_for(best["county"], best["lat"], best["lon"])
-    if stations := stations_for(best["lat"], best["lon"]):
-        out["stations"] = stations
+    out["start_points"] = start_points(best["lat"], best["lon"], out["staging"])
     return out
 
 
@@ -207,11 +206,17 @@ def staging_for(county: str, lat: float, lon: float) -> dict:
 
 # ---------------------------------------------------------------- stations
 EMS_BASE_MAX_KM = 25  # farther than this, the nearest fire station answers medical calls first
+POLICE_MAX_KM = 30     # farther than this, a welfare check goes out from the county staging point
+# Where each unit starts. Swift-water teams and high-water vehicles in NC are mostly fire and
+# rescue departments; welfare checks are deputies or police. Supply drops leave from the EOC /
+# distribution point and road crews from an NCDOT yard, which OSM does not map: both use staging.
+UNIT_START = {"fire": "fire", "swift_water_rescue": "fire", "high_water_vehicle": "fire",
+              "ems": "ems", "welfare_check": "police", "supply_drop": None, "road_crew": None}
 
 
 @lru_cache(maxsize=1)
 def _stations() -> tuple:
-    """Fire stations and ambulance bases from OSM (sync/sync_stations.py); empty if never synced."""
+    """Fire, ambulance and police/sheriff stations from OSM (sync/sync_stations.py); empty if never synced."""
     try:
         return tuple(dict(r) for r in conn().execute("SELECT name, kind, county, lat, lon FROM stations"))
     except Exception:  # noqa: BLE001 - a database from before stations existed
@@ -227,16 +232,26 @@ def _nearest(kind: str, lat: float, lon: float):
             "distance_km": round(haversine_m(lat, lon, s["lat"], s["lon"]) / 1000, 1)}
 
 
-def stations_for(lat: float, lon: float) -> dict:
-    """Where a fire or EMS unit starts: the nearest fire station and ambulance base. Where no
-    ambulance base is mapped nearby, the nearest fire station (NC fire departments run medical
-    first response). Straight-line nearest; plan_route then finds the open road from it."""
-    fire = _nearest("fire", lat, lon)
-    ems = _nearest("ems", lat, lon)
-    if fire and (not ems or ems["distance_km"] > EMS_BASE_MAX_KM):
-        ems = {**fire, "note": f"No ambulance base mapped within {EMS_BASE_MAX_KM} km; the nearest fire "
-                               "station responds first. Note that EMS transport comes from farther away."}
-    return {k: v for k, v in (("fire", fire), ("ems", ems)) if v}
+def start_points(lat: float, lon: float, staging: dict) -> dict:
+    """Where each unit type would start for an incident here: the nearest station of its kind
+    (straight line; plan_route then finds the open road from it), else the county staging point.
+    No ambulance base nearby: the nearest fire station (NC fire departments run medical first response)."""
+    near = {k: _nearest(k, lat, lon) for k in ("fire", "ems", "police")}
+    if near["fire"] and (not near["ems"] or near["ems"]["distance_km"] > EMS_BASE_MAX_KM):
+        near["ems"] = {**near["fire"], "note": f"No ambulance base mapped within {EMS_BASE_MAX_KM} km; the "
+                       "nearest fire station responds first. EMS transport comes from farther away."}
+    if near["police"] and near["police"]["distance_km"] > POLICE_MAX_KM:
+        near["police"] = None
+    base = {"name": staging["name"], "lat": staging["lat"], "lon": staging["lon"]}
+    out = {}
+    for unit, kind in UNIT_START.items():
+        out[unit] = near.get(kind) if kind else None
+        if not out[unit]:
+            why = ("supplies leave from the county EOC / distribution point" if unit == "supply_drop"
+                   else "NCDOT yards are not in the offline map" if unit == "road_crew"
+                   else "no station of this kind is mapped nearby")
+            out[unit] = {**base, "note": f"County staging point: {why}."}
+    return out
 
 
 # ---------------------------------------------------------------- closures

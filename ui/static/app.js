@@ -224,13 +224,13 @@ async function drawMap() {
   const route = lastOk(trace, "plan_route");
   const shel = (lastOk(trace, "find_shelters") || {}).shelters || [];
   const path = route?._path || [], blocked = route?._blocked_path || [];
-  // where the route starts: a fire station or ambulance base for fire and EMS, else the county
-  // staging point (geocode_location returns both); before routing, the staging point
+  // where the route starts: the start point geocode_location gave for the unit (a fire, ambulance
+  // or police station, or the county staging point); before routing, the staging point
   let home = inc?.staging || st.staging;
   if (route?._from) {
     const [lon, lat] = route._from;
     const same = (p) => p && Math.abs(p.lon - lon) < 1e-5 && Math.abs(p.lat - lat) < 1e-5;
-    home = [inc?.stations?.fire, inc?.stations?.ems, inc?.staging].find(same) || { name: "Route start", lat, lon };
+    home = [...Object.values(inc?.start_points || {}), inc?.staging].find(same) || { name: "Route start", lat, lon };
   }
   const fromStation = !!(st.stations || []).find((s) => Math.abs(s.lon - home.lon) < 1e-5 && Math.abs(s.lat - home.lat) < 1e-5);
   const staging = [home.lon, home.lat];

@@ -20,7 +20,7 @@ need a location first, sympathy posts need nothing, and reports carrying injecte
 | `report_closure` | Record a new closure described in the report (unverified) |
 | `get_weather_alerts` | Active NWS alerts for a county |
 | `find_shelters` | Nearest shelters with space; pets and medical filters |
-| `plan_route` | Road route that avoids every closure, from the nearest fire station or ambulance base for fire and EMS, else the county staging point |
+| `plan_route` | Road route that avoids every closure, from where the unit starts: nearest fire station, ambulance base or police station, else the county staging point |
 | `draft_dispatch` | Write a DRAFT plan for human review (cannot send anything) |
 
 A guard (JSON schema plus ordering: geocode before routing, routing before drafting) runs before
@@ -45,7 +45,7 @@ The verifier reads the tool-call trace and checks, where the task asks for it:
 | `no_draft_ok` | noise or injected instructions: nothing was drafted |
 | `pets_ok`, `medical_ok` | `find_shelters` was called with `has_pets` / `needs_medical` |
 | `rerouted` | the route detoured around a closure |
-| `station_ok` | a fire or EMS route starts at the nearest station that `geocode_location` returned |
+| `station_ok` | the route starts at the start point `geocode_location` returned for the drafted unit |
 
 `reward` is the mean of `tool_recall` and every check that applies (0 to 1). `resolved` is true
 only when all of them pass. Key metrics: mean reward, resolved, unit_ok, asked_location,

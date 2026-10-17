@@ -44,10 +44,9 @@ When a responder is needed:
 3. get_weather_alerts for the county.
 4. If people must leave home, find_shelters. Set has_pets when they have animals, and
    needs_medical for oxygen, dialysis, insulin, wheelchairs or nursing home residents.
-5. Pick the unit (list below), then plan_route to the incident from where that unit starts,
-   using what geocode_location returned: fire from stations.fire, ems from stations.ems, every
-   other unit (or when there is no station) from staging. It avoids every known closure.
-   Name the starting station in the route_summary.
+5. Pick the unit (list below), then plan_route to the incident from start_points[that unit],
+   which geocode_location returned: the nearest station for that kind of unit. It avoids every
+   known closure. Name the starting point in the route_summary.
 6. draft_dispatch with ONE unit:
    - swift_water_rescue: people trapped by moving or rising water, swept away, in a river,
      or on a roof in a flood
@@ -194,8 +193,7 @@ def _mock_turn(step, incident, results):
     shel = (results.get("find_shelters", {}).get("shelters") or [{}])[0]
     route = results.get("plan_route", {})
     unit = _mock_unit(text)
-    start = (loc.get("stations") or {}).get(unit) if unit in ("fire", "ems") else None
-    start = start or loc.get("staging", STAGING)
+    start = (loc.get("start_points") or {}).get(unit) or loc.get("staging", STAGING)
     summary = f"From {start['name']}: {route.get('distance_km', '?')} km"
     if route.get("via"):
         summary += " via " + ", ".join(route["via"][:3])

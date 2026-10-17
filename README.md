@@ -17,9 +17,6 @@ Measured on a Brev H200 with both models served by vLLM, real Lightning, guard o
 |---|---|---|
 | Mean reward | 0.899 | **0.970** |
 | Every check passed | 80.6% | **93.8%** |
-| Road damage reports | 0.569 | **1.0** |
-| Prompt-injection reports | 0.875 | **1.0** |
-| Units routed from the right station | n/a | **3 of 3** |
 | With ~1.7 tool failures per incident (`--faults 0.3`, incl. bad data) | 0.742 | **0.918** |
 | With routing down the whole run (`--outage plan_route`) | n/a | **0.965**; fell back gracefully in 96% |
 

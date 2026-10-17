@@ -21,7 +21,7 @@ tags:
 
 A 1.7B model that sorts disaster reports (texts, call notes, social posts) into the 10
 humanitarian categories of HumAID. It is the triage stage of
-[StormDesk](https://github.com/natedemoss/RedHat-x-NVIDIA--Stormdesk), an offline disaster-response agent built for the
+[StormDesk](https://github.com/natedemoss/Stormdesk), an offline disaster-response agent built for the
 NVIDIA x Red Hat Small Models Hack. It runs next to Nemotron 3.5 Lightning on one GPU, with no
 internet, so a county emergency operations center can triage reports when networks are down,
 as they were in western North Carolina after Hurricane Helene.

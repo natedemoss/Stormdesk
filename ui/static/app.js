@@ -292,6 +292,13 @@ async function drawMap() {
     if (!inView(s.lon, s.lat)) continue;
     const [x, y] = P(s.lon, s.lat);
     const space = s.capacity == null ? null : s.capacity - (s.occupancy || 0);
+    // potential shelters (capacity unknown) are most of the list: small and faint, and hidden
+    // around an open incident unless the agent picked one, so the route stays readable
+    if (space == null && s.id !== pick) {
+      if (inc) continue;
+      out.push(`<rect class="shelter pot faint" x="${x - 3}" y="${y - 3}" width="6" height="6"/>`);
+      continue;
+    }
     const cls = space == null ? " pot" : space <= 0 ? " full" : "";
     out.push(`<rect class="shelter${cls}${s.id === pick ? " pick" : ""}" x="${x - 5}" y="${y - 5}" width="10" height="10"/>`);
     const text = tidy(s.name) + (space == null ? "" : `, ${space > 0 ? space + " open" : "full"}`);

@@ -134,9 +134,9 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map-zoom button + button { border-top: 1px solid var(--rule-2); }
 .map-zoom button:hover { background: var(--rule-2); }
 .map-zoom .fit { width: auto; padding: 0 4px; font-size: 11px; }
-.map .r2 { stroke: #c9cbc1; stroke-width: .8; fill: none; }
-.map .r1 { stroke: #b0b3a7; stroke-width: 1.6; fill: none; }
-.map .r0 { stroke: #8f9385; stroke-width: 2.8; fill: none; }
+.map .r2 { stroke: #babdb1; stroke-width: .9; fill: none; }
+.map .r1 { stroke: #9a9e91; stroke-width: 1.7; fill: none; }
+.map .r0 { stroke: #767a6c; stroke-width: 3; fill: none; }
 .map .r0c { stroke: #f6f4ec; stroke-width: 1.2; fill: none; }
 .map .route-case { stroke: #fff; stroke-width: 8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .map .route { stroke: var(--route); stroke-width: 4.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
@@ -150,6 +150,7 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map .unv .closed-dot { fill: var(--unv); }
 .map .shelter { fill: var(--ok); stroke: #fff; stroke-width: 1.5; }
 .map .shelter.pot { fill: #fff; stroke: var(--ok); stroke-width: 2; }
+.map .shelter.pot.faint { stroke-width: 1.2; opacity: .5; }
 .map .shelter.full { fill: #aeb2a5; }
 .map .shelter.pick { stroke: var(--ink); stroke-width: 2.5; }
 .map .staging { fill: var(--ink); stroke: #fff; stroke-width: 1.5; }
@@ -240,7 +241,8 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .tk-body dt { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--mute); padding-top: 8px; border-right: 1px solid var(--rule); }
 .tk-unit { font: 600 13.5px var(--mono); }
 .tk-desc { font-size: 12px; color: var(--mute); margin-top: 2px; }
-.tk-actions { display: flex; gap: 8px; padding: 10px 12px; }
+/* pinned to the bottom of the agent panel, so Approve / Reject never need a scroll */
+.tk-actions { display: flex; gap: 8px; padding: 10px 12px; position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--rule); box-shadow: 0 -6px 12px rgba(20, 26, 36, .06); }
 .tk-actions .btn { flex: 1; }
 .tk-foot { padding: 0 12px 10px; font-size: 11.5px; color: var(--mute); }
 .tk-head .tk-id { margin-left: 8px; letter-spacing: 0; text-transform: none; font-weight: 400; }

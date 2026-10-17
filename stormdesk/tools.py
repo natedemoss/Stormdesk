@@ -134,8 +134,10 @@ def geocode_location(text: str) -> dict:
     # to, through a "<name> county" phrase or another place it mentions (a town in that county).
     best_s, best_name, best = max(scored, key=lambda t: t[0])
     tied = [r for s, n, r in scored if n == best_name and s == best_s]
-    # other places actually named in the report (a town), and any "<name> county" phrase
-    named = [(n, r) for s, n, r in scored if n != best_name and f" {n} " in f" {q} "]
+    # other places actually named in the report (a town), and any "<name> county" phrase. Names inside
+    # the matched one don't count: "Church Road" is part of "Pinnacle Church Road", not a second place.
+    named = [(n, r) for s, n, r in scored
+             if n != best_name and f" {n} " in f" {q} " and f" {n} " not in f" {best_name} "]
     context = {r["county"].lower() for n, r in named}
     context |= {f"{c} county".lower() for c in re.findall(r"\b(\w+) county\b", text, re.I)}
     in_context = [r for r in tied if r["county"].lower() in context]
@@ -143,13 +145,24 @@ def geocode_location(text: str) -> dict:
     if in_context:
         best = in_context[0]
     elif named and len({r["county"] for r in tied}) > 1:
-        # "Main Street in Burnsville" but Burnsville's county has no Main Street: use the town
-        # rather than a same-named road in another county
-        town_name, best = max(named, key=lambda t: len(t[0]))
-        note = (f"No '{tied[0]['name']}' found in {best['county']}; located the report at {best['name']}. "
-                "Ask the reporter for a nearby landmark.")
+        # "Main Street in Burnsville" but Burnsville's county has no Main Street. OSM often names it
+        # "West Main Street" or "East Main Street": take the one nearest the town. Failing that, use the
+        # town rather than a same-named road in another county.
+        town_name, town = max(named, key=lambda t: len(t[0]))
+        variants = [r for n, r in _gazetteer() if r["county"] == town["county"]
+                    and n.split()[0] in ("north", "south", "east", "west") and n.split(None, 1)[-1] == best_name]
+        if variants:
+            best = min(variants, key=lambda r: (r["lat"] - town["lat"]) ** 2 + (r["lon"] - town["lon"]) ** 2)
+            note = (f"No plain '{tied[0]['name']}' in {best['county']}; used {best['name']}, the nearest one "
+                    f"to {town['name']}. Confirm with the reporter.")
+        else:
+            best = town
+            note = (f"No '{tied[0]['name']}' found in {best['county']}; located the report at {best['name']}. "
+                    "Ask the reporter for a nearby landmark.")
     else:
-        best = tied[0]
+        # no hint in the report: prefer the counties in config order (the home county first)
+        order = [f"{c} County" for c in COUNTIES]
+        best = min(tied, key=lambda r: order.index(r["county"]) if r["county"] in order else len(order))
         if len({r["county"] for r in tied}) > 1:
             note = (f"'{best['name']}' exists in {len(tied)} counties; picked {best['county']}. "
                     "Ask the reporter for the town if unsure.")
@@ -398,6 +411,12 @@ def plan_route(from_lat: float, from_lon: float, to_lat: float, to_lon: float) -
     except nx.NetworkXNoPath:
         return {"ok": False, "reason": "No open route. All paths cross a closure.",
                 "blocked_nodes": len(blocked), **blocked_extra}
+    if len(path) < 2:  # both ends snap to the same intersection: they are on the same stretch of road
+        km = haversine_m(from_lat, from_lon, to_lat, to_lon) / 1000
+        return {"ok": True, "mode": "road_graph", "distance_km": round(km, 1), "via": [],
+                "note": "Start and incident are on the same stretch of road; distance is straight-line.",
+                "closures_avoided": len(closures), "rerouted": False,
+                "_path": [[from_lon, from_lat], [to_lon, to_lat]], "_from": [from_lon, from_lat]}
     meters = _path_m(H, path)
     reroute = {"rerouted": direct_blocked}
     if direct_blocked:

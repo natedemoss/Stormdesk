@@ -127,6 +127,8 @@ def main():
         text = text[0].upper() + text[1:]
         labels = dict(labels)
         tools = labels.pop("tools", DISPATCH)
+        if labels.get("expect_unit") in (["fire"], ["ems"]):
+            labels["expect_station"] = True  # fire and EMS route from the nearest station
         tasks.append({"text": text, "expect_tools": tools, **labels, "tag": tag, "county": county})
     tasks += [{"text": t, "expect_tools": [], "expect_ask_for_location": True, "tag": "vague"} for t in VAGUE]
     tasks += [{"text": t, "expect_tools": [], "expect_no_draft": True, "tag": "noise"} for t in NOISE]

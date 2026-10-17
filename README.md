@@ -24,7 +24,7 @@ Incident queue (sorted by urgency)
 Lightning agent (tool calling)                      vLLM :8000
    tools: geocode_location   (offline gazetteer)
           get_road_closures  (cached NCDOT + reports from the public)
-          plan_route         (offline OSM road graph)
+          plan_route         (offline OSM road graph; fire and EMS start at the nearest station)
           get_weather_alerts (cached NOAA)
           find_shelters      (local shelter list)
           report_closure     (adds a closure learned from a report)
@@ -141,7 +141,7 @@ A raised report stays in the queue and shows why (`possible medical emergency`,
 - NOAA/NWS alerts: https://api.weather.gov/alerts/active?area=NC
 - FEMA Open Shelters (ESF#6, synced with Red Cross): https://gis.fema.gov/arcgis/rest/services/NSS/OpenShelters/FeatureServer
 - NC OneMap Potential Emergency Shelters (NC CGIA): https://services.nconemap.gov/secure/rest/services/NC1Map_Emergency_Law_Enforcement/FeatureServer/2
-- OpenStreetMap via osmnx: roads and place names (Geofabrik NC extract for full offline use)
+- OpenStreetMap via osmnx: roads, place names, fire stations and ambulance bases (Geofabrik NC extract for full offline use)
 
 Files named `*_sample.*` and `data/demo_reports.jsonl` are **sample/demo data**, not real records.
 The synced cache (`data/stormdesk.db`, `data/cache/`) holds real public data.

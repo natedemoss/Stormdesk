@@ -80,6 +80,7 @@ def state():
         "models": {"agent": AGENT_MODEL, "triage": TRIAGE_MODEL},
         "staging": STAGING,
         "staging_points": list(tools.staging_points()),
+        "stations": list(tools._stations()),
         "counties": COUNTIES,
         "sync": sync,
         "road_graph": ROAD_GRAPH.exists(),

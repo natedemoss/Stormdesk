@@ -30,6 +30,9 @@ First decide whether the report needs a responder.
   forecasts, jokes or obvious hoaxes, and utility outages where no one is at risk. Reply in one
   or two sentences saying why and call no tools. For an outage, say the power company handles
   it and suggest welfare checks for people on home oxygen or other powered medical equipment.
+- Damage to a named road or bridge (tree down, washout, slide, bridge out) is never just an
+  advisory, even when no one is hurt or the reporter is "just warning people": log it with
+  report_closure and draft a road_crew.
 - If the report names no place you can geocode, do not guess: ask for a road, landmark or
   cross street and draft nothing. Never invent coordinates.
 
@@ -88,7 +91,7 @@ MOCK_UNITS = [  # first keyword match wins; a rough stand-in for the model's jud
     (("fire", "smoke", "gas smell", "sparking"), "fire"),
     (("chest pain", "bleeding", "broke", "unconscious", "someone collapsed", "he collapsed", "she collapsed",
       "hurt", "injur", "seizure", "seizing", "stroke", "overdos", "choking", "allergic", "unresponsive",
-      "passed out", "fainted", "in labor", "water broke", "can't breathe", "heart attack",
+      "passed out", "fainted", "not breathing", "in labor", "water broke", "can't breathe", "heart attack",
       # already OUT of a critical medicine is a medical emergency; merely running low is a supply drop
       "out of insulin", "no insulin", "out of his insulin", "out of her insulin", "out of medication",
       "out of meds", "missed treatment", "missed dialysis"), "ems"),

@@ -7,7 +7,8 @@ report the same numbers. A case is a line of eval/incidents.jsonl; a trace is a 
 import statistics
 
 # Pass/fail checks; each applies only when its case field is set, else it is None.
-BOOL_CHECKS = ("unit_ok", "asked_location", "rerouted", "pets_ok", "medical_ok", "no_draft_ok", "priority_ok")
+BOOL_CHECKS = ("unit_ok", "asked_location", "rerouted", "pets_ok", "medical_ok", "no_draft_ok", "priority_ok",
+               "station_ok")
 
 
 def _ok(t):
@@ -25,6 +26,14 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
     def check(field, value):
         return value if case.get(field) else None
 
+    def from_station():
+        """The route starts at the station geocode_location gave for the drafted unit (fire, ems)."""
+        geo = next((t["result"] for t in trace if t["tool"] == "geocode_location" and _ok(t)), {})
+        call = next((t for t in reversed(trace) if t["tool"] == "plan_route" and _ok(t)), None)
+        station = draft and (geo.get("stations") or {}).get(draft["args"].get("unit_type"))
+        return bool(station and call and abs(call["args"].get("from_lat", 0) - station["lat"]) < 1e-3
+                    and abs(call["args"].get("from_lon", 0) - station["lon"]) < 1e-3)
+
     return {
         "tool_recall": recall,
         "guard_blocks": sum(t["result"].get("blocked_by") == "guard" for t in trace),
@@ -37,6 +46,7 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
         "no_draft_ok": check("expect_no_draft", not drafted),
         "priority_ok": check("expect_priority_min",
                              bool(draft) and draft["args"].get("priority", 0) >= (case.get("expect_priority_min") or 0)),
+        "station_ok": check("expect_station", from_station()),
     }
 
 

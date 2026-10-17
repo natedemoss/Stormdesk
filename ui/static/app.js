@@ -224,8 +224,15 @@ async function drawMap() {
   const route = lastOk(trace, "plan_route");
   const shel = (lastOk(trace, "find_shelters") || {}).shelters || [];
   const path = route?._path || [], blocked = route?._blocked_path || [];
-  // the staging point this incident routes from (geocode_location picks it), else the home one
-  const home = inc?.staging || st.staging;
+  // where the route starts: a fire station or ambulance base for fire and EMS, else the county
+  // staging point (geocode_location returns both); before routing, the staging point
+  let home = inc?.staging || st.staging;
+  if (route?._from) {
+    const [lon, lat] = route._from;
+    const same = (p) => p && Math.abs(p.lon - lon) < 1e-5 && Math.abs(p.lat - lat) < 1e-5;
+    home = [inc?.stations?.fire, inc?.stations?.ems, inc?.staging].find(same) || { name: "Route start", lat, lon };
+  }
+  const fromStation = !!(st.stations || []).find((s) => Math.abs(s.lon - home.lon) < 1e-5 && Math.abs(s.lat - home.lat) < 1e-5);
   const staging = [home.lon, home.lat];
 
   let pts;
@@ -298,8 +305,16 @@ async function drawMap() {
     out.push(`<rect class="staging other" x="${x - 4}" y="${y - 4}" width="8" height="8"/>`);
     label(x, y, 4, p.name, "lbl-s", 11, 5);
   }
+  for (const s of inc?.found ? st.stations || [] : []) {  // stations near an open incident, unlabeled
+    if (!inView(s.lon, s.lat) || (s.lon === home.lon && s.lat === home.lat)) continue;
+    const [x, y] = P(s.lon, s.lat);
+    out.push(`<path class="station" d="M${x} ${y - 5}L${x + 5} ${y}L${x} ${y + 5}L${x - 5} ${y}Z"/>`);
+    obstacle(x, y, 5);
+  }
   const [sx, sy] = P(...staging);
-  out.push(`<rect class="staging" x="${sx - 6}" y="${sy - 6}" width="12" height="12"/>`);
+  out.push(fromStation
+    ? `<path class="station start" d="M${sx} ${sy - 8}L${sx + 8} ${sy}L${sx} ${sy + 8}L${sx - 8} ${sy}Z"/>`
+    : `<rect class="staging" x="${sx - 6}" y="${sy - 6}" width="12" height="12"/>`);
   label(sx, sy, 6, home.name.replace(" (sample)", ""), "lbl-b", 12.5, 1, true);
   if (inc && inc.found) {
     const [ix, iy] = P(inc.lon, inc.lat);

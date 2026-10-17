@@ -154,6 +154,8 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map .shelter.pick { stroke: var(--ink); stroke-width: 2.5; }
 .map .staging { fill: var(--ink); stroke: #fff; stroke-width: 1.5; }
 .map .staging.other { opacity: .55; }
+.map .station { fill: #fff; stroke: var(--ink); stroke-width: 1.5; opacity: .7; }
+.map .station.start { fill: var(--ink); stroke: #fff; opacity: 1; }
 .map .inc { fill: var(--signal); stroke: #fff; stroke-width: 2.5; }
 .map .inc-ring { fill: none; stroke: var(--signal); stroke-width: 1.5; }
 .map text { font: 11.5px var(--sans); fill: var(--ink); paint-order: stroke; stroke: var(--map-bg); stroke-width: 3.5px; stroke-linejoin: round; }
@@ -187,6 +189,7 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .k-unv { width: 9px; height: 9px; border-radius: 50%; background: var(--unv); }
 .k-shelter { width: 9px; height: 9px; background: var(--ok); }
 .k-pot { width: 9px; height: 9px; border: 2px solid var(--ok); background: #fff; }
+.k-station { width: 8px; height: 8px; border: 2px solid var(--ink); background: #fff; transform: rotate(45deg); }
 .attrib { position: absolute; right: 12px; bottom: 12px; font-size: 10.5px; color: var(--mute); background: rgba(236,238,230,.85); padding: 1px 4px; }
 
 /* ------------------------------------------------------------ right column */

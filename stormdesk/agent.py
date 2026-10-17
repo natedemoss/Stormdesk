@@ -67,9 +67,13 @@ When a responder is needed:
    medical need and the unit is not ems.
 Each tool reports how old its data is; mention it when the data may be stale.
 
-Tools can fail. Read the error: fix bad arguments; retry a timeout or a locked database (up to
-twice). If a tool stays down, carry on with what you have and say in the notes what is missing.
-Without a route you cannot draft: tell the dispatcher which step failed so they can route by hand."""
+Tools can fail. Read the error before deciding anything:
+- A timeout or "database is locked" is temporary. Call the same tool again with the same
+  arguments, right away. Try at least twice more before you treat that tool as down.
+- An argument error means fix the arguments and call again.
+- If draft_dispatch fails, call it again. Never write a dispatch plan as text instead.
+- Only if a tool fails three times in a row: carry on without it and say in the notes what is
+  missing. Without a route you cannot draft; tell the dispatcher which step failed."""
 
 # Fault injection (console "Faults" switch, run_eval.py --faults): a tool call fails before it runs,
 # with the kind of error the real tool can raise, so recovery can be shown and measured. Faults are

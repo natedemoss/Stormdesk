@@ -265,6 +265,7 @@ table.sb { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.sb th { text-align: left; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); font-weight: 700; padding: 5px 6px 5px 0; border-bottom: 1px solid var(--ink); }
 table.sb td { padding: 6px 6px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
 td.res { font: 700 10.5px var(--mono); text-transform: uppercase; white-space: nowrap; }
+.trying::after { content: ""; display: inline-block; width: 6px; height: 10px; margin-left: 4px; background: var(--mute); vertical-align: -1px; animation: blink 1s steps(1) infinite; }
 td.res.good { color: var(--ok); } td.res.bad { color: var(--closed); } td.res.skipped { color: var(--mute); }
 .why { font-size: 11.5px; color: var(--mute); }
 .prover { font: 11.5px/1.5 var(--mono); background: #efede6; border: 1px solid var(--rule); padding: 8px; white-space: pre-wrap; margin: 0 0 8px; }

@@ -513,7 +513,11 @@ function renderSandbox() {
   html += `<div class="section"><span>Red-team checks</span><button class="btn ghost" id="redteam" style="padding:3px 10px;font-size:12px">Run checks</button></div>`;
   const rt = S.redteam?.results;
   if (rt) {
-    html += `<table class="sb"><tr><th>Attempt</th><th>Result</th></tr>${rt.map((r) => {
+    // The checks finish in well under a second; rows are revealed one at a time so each can be read.
+    const shown = S.rtShown ?? Infinity;
+    html += `<table class="sb"><tr><th>Attempt</th><th>Result</th></tr>${rt.map((r, i) => {
+      if (i > shown) return "";
+      if (i === shown) return `<tr><td>${esc(r.title)}</td><td class="res skipped"><span class="trying">trying</span></td></tr>`;
       const cls = r.outcome === "skipped" || r.ok === null ? "skipped" : r.ok ? "good" : "bad";
       const word = r.outcome;
       return `<tr><td>${esc(r.title)}<div class="why">${esc(r.detail)}</div></td><td class="res ${cls}">${word}</td></tr>`;
@@ -532,8 +536,15 @@ function renderSandbox() {
   if (S.rtRunning) { $("#redteam").disabled = true; $("#redteam").textContent = "Running"; }
   $("#redteam").onclick = async () => {
     S.rtRunning = true; renderSandbox();
-    try { S.redteam = await api("/api/redteam", { method: "POST" }); } catch (e) { toast(e.message); }
-    S.rtRunning = false;
+    try {
+      S.redteam = await api("/api/redteam", { method: "POST" });
+      const n = S.redteam?.results?.length || 0;
+      for (let i = 0; i <= n; i++) {
+        S.rtShown = i; renderSandbox();
+        if (i < n) await new Promise((r) => setTimeout(r, 1000));
+      }
+    } catch (e) { toast(e.message); }
+    S.rtShown = undefined; S.rtRunning = false;
     await loadSandbox(); renderSandbox();
   };
 }

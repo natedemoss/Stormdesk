@@ -37,17 +37,25 @@ First decide whether the report needs a responder.
 - If the report names no place you can geocode, do not guess: ask for a road, landmark or
   cross street and draft nothing. Never invent coordinates.
 
-When a responder is needed:
-1. geocode_location on the place named in the report.
-2. get_road_closures near it. If the report itself describes road damage (tree down, bridge
-   out, washout, slide), call report_closure for it.
-3. get_weather_alerts for the county.
-4. If people must leave home, find_shelters. Set has_pets when they have animals, and
-   needs_medical for oxygen, dialysis, insulin, wheelchairs or nursing home residents.
-5. Pick the unit (list below), then plan_route to the incident from start_points[that unit],
-   which geocode_location returned: the nearest station for that kind of unit. It avoids every
-   known closure. Name the starting point in the route_summary.
-6. draft_dispatch with ONE unit:
+When a responder is needed, your goal is one draft a dispatcher can approve as is: the right
+unit, leaving from where that unit is based, by roads that are open, at the right priority,
+with what the crew needs to know. There is no fixed checklist. Decide which tools this report
+needs and call only those, in the order the work needs them. Only two things must come first:
+a place must be located before you route to it, and a route must be planned before you draft.
+Your tools, and when they earn their call:
+- geocode_location: turns the place in the report into coordinates, and returns start_points,
+  where each kind of unit would leave from. Nothing can be routed without it.
+- get_road_closures: what is closed near the incident. Worth it whenever a unit will drive in.
+- report_closure: when the report itself describes damage to a road (tree down, bridge out,
+  washout, slide), so every later route avoids it.
+- get_weather_alerts: when the weather could change the response: flooding, rising water, more
+  rain, crews traveling by road in the storm. A call indoors in calm weather may not need it.
+- find_shelters: only when people must leave their home. Set has_pets when they have animals,
+  and needs_medical for oxygen, dialysis, insulin, wheelchairs or nursing home residents.
+- plan_route: from start_points[the unit you will send] to the incident; it avoids every known
+  closure. If you change your mind about the unit, route again from its start point. Name the
+  starting point in the route_summary.
+- draft_dispatch: ONE unit, when the plan is complete:
    - swift_water_rescue: people trapped by moving or rising water, swept away, in a river,
      or on a roof in a flood
    - high_water_vehicle: people who must be moved through standing floodwater, not fast water
@@ -335,6 +343,18 @@ def _mock_turn(step, incident, results, down=frozenset()):
     return seq[step] if step < len(seq) else None
 
 
+def _gist(reasoning, limit: int = 220) -> str:
+    """The last sentences of the model's reasoning before a tool call: usually the decision itself."""
+    if not reasoning:
+        return ""
+    text = " ".join(str(reasoning).split())
+    if len(text) <= limit:
+        return text
+    tail = text[-limit:]
+    cut = max(tail.find(". ") + 2, 0)
+    return "…" + tail[cut:] if 0 < cut < limit // 2 else "…" + tail
+
+
 def for_model(out: dict) -> dict:
     """Drop "_" keys (map geometry) so they don't fill the model's context."""
     return {k: v for k, v in out.items() if not k.startswith("_")}
@@ -401,6 +421,9 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
         transcript.append({"role": "assistant", "content": content, "tool_calls": tool_calls,
                            **({"reasoning_content": reasoning} if reasoning else {})})
         model_ms = round((time.time() - tm) * 1000)
+        # the model's own reason for this turn's calls (its reasoning, trimmed), shown in the console
+        # so the choice of tool is visibly the model's, not a script's
+        thought = _gist(reasoning)
 
         for c in calls:
             t1 = time.time()
@@ -435,6 +458,8 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
             entry = {"step": step, "tool": c["name"], "args": c["args"], "result": out,
                      "guard": "off" if not use_guard else ("blocked" if err else "pass"),
                      "ms": round((time.time() - t1) * 1000), "model_ms": model_ms}
+            if thought:
+                entry["thought"], thought = thought, None  # once per model turn
             trace.append(entry)
             if on_step:
                 on_step(entry)

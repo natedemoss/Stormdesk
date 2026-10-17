@@ -416,6 +416,10 @@ textarea:focus, select:focus { border-color: var(--route); box-shadow: 0 0 0 3px
 table.sb th { border-bottom-color: var(--rule-2); }
 .toast { border-radius: 10px; box-shadow: 0 8px 24px rgba(16, 24, 40, .25); }
 
+/* the model's reason for a call, above what the call returned */
+.lg-why { margin: 3px 0 2px 30px; padding-left: 8px; border-left: 2px solid rgba(31, 79, 209, .35);
+  font-size: 12px; font-style: italic; line-height: 1.4; color: var(--mute); }
+
 /* ============================================================ work the queue */
 /* reports header: title and button on one line, the counts under them */
 .queue .col-head { flex-wrap: wrap; align-items: center; row-gap: 2px; }

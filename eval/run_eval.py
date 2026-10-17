@@ -75,13 +75,31 @@ def summarize(rows):
     return {k: mean(k) for k in rows[0] if k != "tag"}
 
 
+def tool_choice(sequences):
+    """How much the agent's tool use varies by report: evidence it is not one hard-coded sequence.
+    A sequence is the tools a run called, in order, with repeats (retries) collapsed."""
+    from collections import Counter
+    seqs = Counter(" > ".join(s) or "(no tools)" for s in sequences)
+    used = Counter(t for s in sequences for t in set(s))
+    return {"distinct_sequences": len(seqs), "runs": len(sequences),
+            "most_common_share": round(seqs.most_common(1)[0][1] / len(sequences), 3) if sequences else None,
+            "no_tool_runs": seqs.get("(no tools)", 0),
+            "tool_use_share": {t: round(n / len(sequences), 3) for t, n in sorted(used.items())},
+            "top_sequences": [{"sequence": s, "runs": n} for s, n in seqs.most_common(5)]}
+
+
 def run_mode(cases, use_guard, fault_rate=0.0, outage=None):
-    rows = []
+    rows, sequences = [], []
     for n, c in enumerate(cases):
         inc = ingest(c["text"], "eval")
         res = agent.run(inc["id"], use_guard=use_guard, fault_rate=fault_rate, fault_seed=n, outage=outage)
         rows.append({**score(scoring.for_outage(c, outage) if outage else c, res), "tag": c.get("tag", "untagged")})
-    out = {"all": summarize(rows), "cases": len(rows)}
+        seq = []
+        for t in res["trace"]:
+            if not seq or seq[-1] != t["tool"]:
+                seq.append(t["tool"])
+        sequences.append(seq)
+    out = {"all": summarize(rows), "cases": len(rows), "tool_choice": tool_choice(sequences)}
     for tag in sorted({r["tag"] for r in rows}):
         out[tag] = summarize([r for r in rows if r["tag"] == tag])
     return out

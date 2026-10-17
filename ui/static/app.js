@@ -516,6 +516,7 @@ function logItem(t, i) {
   const enter = S.running && i === S.trace.length - 1 ? " enter" : "";
   return `<li class="${kind}${enter}">
     <div class="lg-head"><span class="lg-n">${String(i + 1).padStart(2, "0")}</span><span class="lg-tool">${esc(t.tool)}<span class="lg-ms">${t.ms ?? ""}${t.ms != null ? " ms" : ""}</span></span><span class="lg-st ${kind}">${label}</span></div>
+    ${t.thought ? `<div class="lg-why" title="Lightning's reasoning before this call">${esc(t.thought)}</div>` : ""}
     <div class="lg-sum">${esc(summarize(t))}</div>
     ${r.freshness ? `<div class="lg-fresh">${esc(r.freshness)}</div>` : ""}${r.note ? `<div class="lg-fresh">${esc(r.note)}</div>` : ""}
     <pre>${esc(JSON.stringify({ args: t.args, result: forModel(r) }, null, 2))}</pre></li>`;

@@ -22,7 +22,7 @@ sudo apt-get install -y -q build-essential python3-dev python3-venv wget
 echo "== Serving env (.venv-serve)"
 python3 -m venv .venv-serve
 .venv-serve/bin/pip install -q -U pip
-.venv-serve/bin/pip install -q "vllm>=0.27.1" -r requirements.txt "huggingface_hub[cli]"
+.venv-serve/bin/pip install -q "vllm>=0.27.1" -r requirements.txt huggingface_hub
 
 echo "== Weight downloads (background, logs/download_*.log)"
 dl() { nohup .venv-serve/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('$1')" \

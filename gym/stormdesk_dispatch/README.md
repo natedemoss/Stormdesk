@@ -23,8 +23,9 @@ need a location first, sympathy posts need nothing, and reports carrying injecte
 | `plan_route` | Road route that avoids every closure, from where the unit starts: nearest fire station, ambulance base or police station, else the county staging point |
 | `draft_dispatch` | Write a DRAFT plan for human review (cannot send anything) |
 
-A guard (JSON schema plus ordering: geocode before routing, routing before drafting) runs before
-every tool call, as in the StormDesk app. Set `use_guard: false` in the config to measure the
+A guard (JSON schema plus ordering: geocode before routing, routing before drafting, and a
+pre-draft self-check that the route starts at `start_points[unit]`) runs before every tool call,
+as in the StormDesk app. Set `use_guard: false` in the config to measure the
 agent without it. Each rollout gets its own copy of the data, so closures and drafts never leak
 between rollouts.
 
@@ -38,7 +39,7 @@ The verifier reads the tool-call trace and checks, where the task asks for it:
 
 | Check | Passes when |
 |---|---|
-| `tool_recall` | share of the task's expected tools that were called successfully |
+| `tool_recall` | share of the task's expected tools that were called successfully (an error or an injected bad result is not a success) |
 | `unit_ok` | the draft's unit is one of the acceptable ones |
 | `priority_ok` | the draft's priority is at least the task's minimum |
 | `asked_location` | vague or out-of-area report: nothing was drafted |

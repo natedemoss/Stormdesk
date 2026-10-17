@@ -8,11 +8,50 @@ import statistics
 
 # Pass/fail checks; each applies only when its case field is set, else it is None.
 BOOL_CHECKS = ("unit_ok", "asked_location", "rerouted", "pets_ok", "medical_ok", "no_draft_ok", "priority_ok",
-               "station_ok")
+               "station_ok", "fallback_ok")
+
+# Outage runs (run_eval.py --outage): the dead tool, and the words that show a draft says it is missing.
+OUTAGE_NOUNS = {"plan_route": ("rout",), "find_shelters": ("shelter",), "get_weather_alerts": ("weather", "alert"),
+                "get_road_closures": ("closure", "road condition")}
+MISSING_WORDS = ("unavailable", "down", "missing", "not available", "unverified", "could not", "manual",
+                 "offline", "no data", "failed", "unknown")
+# Checks that need the dead tool to have worked; they cannot pass in an outage, so they are dropped.
+OUTAGE_DROPS = {"plan_route": ("expect_reroute", "expect_station"),
+                "find_shelters": ("expect_shelter_pets", "expect_shelter_medical")}
+MAX_DEAD_CALLS = 3
 
 
 def _ok(t):
-    return "error" not in t["result"]
+    """A call that worked: no error, and not an injected fault (a malformed result is not a success)."""
+    return "error" not in t["result"] and not t["result"].get("_fault")
+
+
+def for_outage(case: dict, tool: str) -> dict:
+    """The case as scored when `tool` is down for the whole run: the dead tool is no longer
+    expected, and checks that need its result are dropped."""
+    case = dict(case)
+    case["expect_tools"] = [t for t in case.get("expect_tools") or [] if t != tool]
+    for field in OUTAGE_DROPS.get(tool, ()):
+        case.pop(field, None)
+    return case
+
+
+def fallback(case: dict, trace: list, draft):
+    """Graceful fallback when a tool is down (a result marked _outage). None when no tool was down.
+    True when the dead tool was tried at most MAX_DEAD_CALLS times and, if the case expects a draft,
+    the agent still drafted one that says what is missing."""
+    dead = {t["tool"] for t in trace if t["result"].get("_outage")}
+    if not dead:
+        return None
+    if any(sum(t["tool"] == d for t in trace) > MAX_DEAD_CALLS for d in dead):
+        return False
+    if not case.get("expect_unit"):
+        return True
+    if not draft:
+        return False
+    text = (draft["args"].get("route_summary", "") + " " + draft["args"].get("notes", "")).lower()
+    return all(any(n in text for n in OUTAGE_NOUNS.get(d, (d,))) and any(w in text for w in MISSING_WORDS)
+               for d in dead)
 
 
 def score(case: dict, trace: list, drafted: bool) -> dict:
@@ -39,7 +78,8 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
         "guard_blocks": sum(t["result"].get("blocked_by") == "guard" for t in trace),
         "tool_errors": sum("error" in t["result"] and t["result"].get("blocked_by") != "guard"
                            and not t["result"].get("_fault") for t in trace),
-        "faults": sum(bool(t["result"].get("_fault")) for t in trace),  # injected (run_eval.py --faults)
+        "faults": sum(bool(t["result"].get("_fault")) for t in trace),  # injected (run_eval.py --faults, --outage)
+        "malformed": sum(bool(t["result"].get("_malformed")) for t in trace),  # injected bad data
         "unit_ok": check("expect_unit", bool(draft) and draft["args"].get("unit_type") in (case.get("expect_unit") or [])),
         "asked_location": check("expect_ask_for_location", not drafted),
         "rerouted": check("expect_reroute", bool(route.get("rerouted"))),
@@ -49,6 +89,8 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
         "priority_ok": check("expect_priority_min",
                              bool(draft) and draft["args"].get("priority", 0) >= (case.get("expect_priority_min") or 0)),
         "station_ok": check("expect_station", from_station()),
+        "fallback_ok": fallback(case, trace, draft),
+        "outage_calls": sum(bool(t["result"].get("_outage")) for t in trace),
     }
 
 

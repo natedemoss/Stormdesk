@@ -3,12 +3,26 @@
     python eval/run_eval.py              # both modes
     python eval/run_eval.py --no-guard   # baseline only
     python eval/run_eval.py --faults 0.3 # 30% of tool calls fail before running: does it recover?
+    python eval/run_eval.py --outage plan_route   # one tool down all run: does it fall back?
+    python eval/run_eval.py --outage all          # each of the four outages in turn
+
+--faults: an injected fault is either an exception (timeout, database locked) or, for
+geocode_location, plan_route and find_shelters, half the time a malformed result (no coordinates,
+no distance, an HTML error page instead of a shelter list). Results: eval/results_faults.json.
+--outage TOOL: every call to TOOL fails (plan_route, find_shelters, get_weather_alerts,
+get_road_closures). The dead tool is dropped from expect_tools, and checks that need its result
+(reroute and station for plan_route, pets and medical for find_shelters) are skipped; fallback_ok
+is scored instead. Results: eval/results_outage_<tool>.json.
 
 Metrics per run:
   tool_recall     share of expected tools the agent actually called successfully
-  guard_blocks    tool calls the guard rejected (and the model then had to fix)
+                  (an injected fault or malformed result is not a success)
+  guard_blocks    tool calls the guard rejected (and the model then had to fix), including the
+                  pre-draft self-check: the route must start where the drafted unit starts
   tool_errors     tool calls that crashed (not counting injected faults)
-  faults          tool calls failed on purpose by --faults
+  faults          tool calls failed on purpose by --faults or --outage
+  malformed       of those, the ones that returned bad data instead of an error
+  outage_calls    calls to the dead tool (--outage); fallback_ok fails above 3
   unit_ok         drafted unit type is one of the acceptable ones
   asked_location  for vague reports, agent did NOT draft and asked for location
   rerouted        for cases marked expect_reroute, plan_route detoured around a closure
@@ -16,6 +30,9 @@ Metrics per run:
   medical_ok      for expect_shelter_medical, find_shelters was called with needs_medical
   no_draft_ok     for expect_no_draft (noise, injected instructions), nothing was drafted
   priority_ok     for expect_priority_min, the draft's priority is at least that
+  station_ok      for expect_station, the route starts at start_points[drafted unit]
+  fallback_ok     with --outage, when the dead tool was called: it was tried at most 3 times, and
+                  if the case expects a draft, one was written that says what is missing
   reward          mean of tool_recall and every applicable check (same as the NeMo Gym environment)
   resolved        share of cases where every applicable check passed
   seconds         wall time to finish
@@ -58,12 +75,12 @@ def summarize(rows):
     return {k: mean(k) for k in rows[0] if k != "tag"}
 
 
-def run_mode(cases, use_guard, fault_rate=0.0):
+def run_mode(cases, use_guard, fault_rate=0.0, outage=None):
     rows = []
     for n, c in enumerate(cases):
         inc = ingest(c["text"], "eval")
-        res = agent.run(inc["id"], use_guard=use_guard, fault_rate=fault_rate, fault_seed=n)
-        rows.append({**score(c, res), "tag": c.get("tag", "untagged")})
+        res = agent.run(inc["id"], use_guard=use_guard, fault_rate=fault_rate, fault_seed=n, outage=outage)
+        rows.append({**score(scoring.for_outage(c, outage) if outage else c, res), "tag": c.get("tag", "untagged")})
     out = {"all": summarize(rows), "cases": len(rows)}
     for tag in sorted({r["tag"] for r in rows}):
         out[tag] = summarize([r for r in rows if r["tag"] == tag])
@@ -75,10 +92,18 @@ def main():
     ap.add_argument("--no-guard", action="store_true")
     ap.add_argument("--faults", type=float, default=0.0,
                     help="inject tool failures at this rate (e.g. 0.3), guard on; writes results_faults.json")
+    ap.add_argument("--outage", choices=[*agent.OUTAGES, "all"],
+                    help="one tool down for the whole run, guard on; writes results_outage_<tool>.json")
     a = ap.parse_args()
     conn = db.connect()
     db.init(conn)
     cases = [json.loads(l) for l in open(HERE / "incidents.jsonl")]
+    if a.outage:
+        for tool in agent.OUTAGES if a.outage == "all" else [a.outage]:
+            report = {f"with_guard_outage_{tool}": run_mode(cases, True, a.faults, outage=tool)}
+            print(json.dumps(report, indent=2))
+            (HERE / f"results_outage_{tool}.json").write_text(json.dumps(report, indent=2))
+        return
     if a.faults:
         report = {f"with_guard_faults_{a.faults}": run_mode(cases, True, a.faults)}
         print(json.dumps(report, indent=2))

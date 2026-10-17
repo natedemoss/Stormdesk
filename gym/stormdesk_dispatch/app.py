@@ -165,8 +165,8 @@ class StormDeskDispatchResourcesServer(SimpleResourcesServer):
             try:
                 out = tools.REGISTRY[name](**args)
             except Exception as e:  # tool failures go back to the model, as in the app
-                return {"error": f"{type(e).__name__}: {e}"}
-            sess.guard.called.append(name)
+                out = {"error": f"{type(e).__name__}: {e}"}
+            sess.guard.record(name, args, out)  # the guard's pre-draft self-check reads results
             return for_model(out)
 
         endpoint.__name__ = name

@@ -66,13 +66,33 @@ When a responder is needed:
    medical need and the unit is not ems.
 Each tool reports how old its data is; mention it when the data may be stale.
 
+Before draft_dispatch, check your plan against what the tools returned, and fix it first if
+anything is off:
+- the unit fits what the report describes (list above);
+- plan_route started at start_points[that unit] (if you changed the unit, route again from
+  its start point);
+- the destination is the place geocode_location found;
+- the priority matches the danger in the report;
+- any medical need or pets are reflected in the notes and the shelter search.
+
 Tools can fail. Read the error before deciding anything:
 - A timeout or "database is locked" is temporary. Call the same tool again with the same
   arguments, right away. Try at least twice more before you treat that tool as down.
 - An argument error means fix the arguments and call again.
+- If a result is missing fields you need or makes no sense (no coordinates, no distance,
+  text where a list should be), it is a bad result: call the tool again. Never use
+  coordinates you did not get from a tool.
 - If draft_dispatch fails, call it again. Never write a dispatch plan as text instead.
-- Only if a tool fails three times in a row: carry on without it and say in the notes what is
-  missing. Without a route you cannot draft; tell the dispatcher which step failed."""
+- A tool that has failed three times in a row is down. Do not call it again; carry on
+  without it and still give the dispatcher everything you have:
+  - get_road_closures or get_weather_alerts down: still route and draft. In the notes say
+    which data is missing and that road or weather conditions are unverified.
+  - find_shelters down: still draft. In the notes say shelter data is unavailable and the
+    dispatcher must confirm a shelter.
+  - plan_route down: still draft_dispatch, with route_summary "Route unavailable: routing
+    engine down. Dispatcher must route manually from <start point name>."
+  - geocode_location down: draft nothing. Tell the dispatcher the location lookup is down and
+    give the place named in the report."""
 
 # Fault injection (console "Faults" switch, run_eval.py --faults): a tool call fails before it runs,
 # with the kind of error the real tool can raise, so recovery can be shown and measured. Faults are
@@ -87,23 +107,90 @@ FAULTS = {
     "report_closure": "OperationalError: database is locked",
     "draft_dispatch": "OperationalError: database is locked",
 }
+# Some injected faults are bad data instead of an exception: the call "succeeds" but the result is
+# missing what the model needs (half of the faults on these tools). The model has to notice it
+# and call again. Marked "_fault" and "_malformed" in the trace; the model sees only the data.
+MALFORMED = {
+    "geocode_location": {"found": True},
+    "plan_route": {"ok": True},
+    "find_shelters": {"shelters": "<html><body><h1>502 Bad Gateway</h1></body></html>"},
+}
+# Outage mode (console "Outage" select, run_eval.py --outage): one tool is down for the whole run.
+# Every call to it fails the same way. The model should stop after three tries and fall back.
+OUTAGES = {
+    "plan_route": "ConnectionError: routing engine is down (offline since {since})",
+    "find_shelters": "ConnectionError: shelter database is unreachable (offline since {since})",
+    "get_weather_alerts": "ConnectionError: weather alert cache is unreachable (offline since {since})",
+    "get_road_closures": "ConnectionError: closure cache is unreachable (offline since {since})",
+}
+DOWN_AFTER = 3  # failures in a row after which a tool counts as down (prompt, guard, mock)
+START_TOL = 1e-3  # degrees (~100 m): a route "starts at" a start point within this
+
+
+def usable(name: str, out: dict) -> bool:
+    """False when a result lacks what the next step needs (a malformed or partial result)."""
+    if "error" in out:
+        return False
+    if name == "geocode_location" and out.get("found"):
+        return isinstance(out.get("lat"), (int, float)) and isinstance(out.get("lon"), (int, float))
+    if name == "plan_route" and out.get("ok"):
+        return isinstance(out.get("distance_km"), (int, float))
+    if name == "find_shelters":
+        return isinstance(out.get("shelters"), list)
+    return True
 
 
 class Guard:
     def __init__(self):
-        self.called = []
+        self.called = []  # tools that ran successfully, in order
+        self.last = {}  # tool -> (args, result) of its last successful call
+        self.fails = {}  # tool -> failed calls in a row (not counting guard blocks)
+        self.rule = None
+
+    def record(self, name: str, args: dict, out: dict):
+        """Called after every call the guard let through, with what came back."""
+        if usable(name, out):
+            self.called.append(name)
+            self.last[name] = (args, out)
+            self.fails[name] = 0
+        else:
+            self.fails[name] = self.fails.get(name, 0) + 1
 
     def check(self, name: str, args: dict):
+        self.rule = None  # "self_check" when the plan failed the pre-draft check (shown in the console)
         if name not in SCHEMAS:
             return f"Unknown tool '{name}'. Available: {list(SCHEMAS)}"
         try:
             jsonschema.validate(args, SCHEMAS[name])
         except jsonschema.ValidationError as e:
             return f"Invalid arguments for {name}: {e.message}"
-        if name == "draft_dispatch" and "plan_route" not in self.called:
-            return "Plan a route with plan_route before drafting a dispatch."
+        if name == "draft_dispatch":
+            if "plan_route" not in self.called:
+                failed = self.fails.get("plan_route", 0)
+                if failed >= DOWN_AFTER:
+                    return None  # routing is down: draft without a route, the dispatcher routes manually
+                if failed:
+                    return (f"plan_route has failed {failed} time(s) in a row. Call it again; only after "
+                            f"{DOWN_AFTER} failures may you draft without a route.")
+                return "Plan a route with plan_route before drafting a dispatch."
+            return self.check_start(args)
         if name == "plan_route" and "geocode_location" not in self.called:
             return "Geocode the incident location before routing."
+        return None
+
+    def check_start(self, args: dict):
+        """Self-check before drafting: the last route starts where the drafted unit starts."""
+        unit = args.get("unit_type")
+        geo = (self.last.get("geocode_location") or (None, {}))[1]
+        start = (geo.get("start_points") or {}).get(unit)
+        if not start or "plan_route" not in self.last:
+            return None
+        route_args = self.last["plan_route"][0]
+        lat, lon = route_args.get("from_lat"), route_args.get("from_lon")
+        if lat is None or lon is None or abs(lat - start["lat"]) > START_TOL or abs(lon - start["lon"]) > START_TOL:
+            self.rule = "self_check"
+            return (f"Route starts at ({lat}, {lon}) but a {unit} unit starts at {start['name']} "
+                    f"({start['lat']}, {start['lon']}). Call plan_route from there, then draft_dispatch.")
         return None
 
 
@@ -179,14 +266,26 @@ def _mock_decline(incident) -> str:
     return f"No dispatch needed: this is {why}. Logged for situational awareness; nothing was drafted."
 
 
-def _mock_turn(step, incident, results):
+MOCK_MISSING = {  # what the mock says in the notes when a tool is down
+    "get_road_closures": "Closure data unavailable (closure cache down); road conditions unverified.",
+    "get_weather_alerts": "Weather alerts unavailable (alert cache down); conditions unverified.",
+    "find_shelters": "Shelter data unavailable (shelter database down); dispatcher must confirm a shelter.",
+    "plan_route": "Routing engine down; no route was planned.",
+}
+
+
+def _mock_turn(step, incident, results, down=frozenset()):
     """Scripted tool sequence so the UI works without a GPU.
 
+    down: tools that failed DOWN_AFTER times in a row; the mock skips them and says what is missing.
     Returns (tool, args), ("__final__", message) to stop with a reply, or None when done.
     """
     if step == 0 and (decline := _mock_decline(incident)):
         return ("__final__", decline)
     loc = results.get("geocode_location", {})
+    if step >= 1 and "geocode_location" in down:
+        return ("__final__", "The location lookup is down, so this report could not be placed. "
+                             "Nothing was drafted; the dispatcher must locate it by hand.")
     if step >= 1 and not loc.get("found"):
         return ("__final__", MOCK_ASK)  # never invent coordinates
     text = incident["raw_text"].lower()
@@ -194,15 +293,24 @@ def _mock_turn(step, incident, results):
     route = results.get("plan_route", {})
     unit = _mock_unit(text)
     start = (loc.get("start_points") or {}).get(unit) or loc.get("staging", STAGING)
-    summary = f"From {start['name']}: {route.get('distance_km', '?')} km"
-    if route.get("via"):
-        summary += " via " + ", ".join(route["via"][:3])
-    if route.get("rerouted"):
-        summary += ", detouring around a closure"
+    if "plan_route" in down and not route:
+        summary = f"Route unavailable: routing engine down. Dispatcher must route manually from {start['name']}."
+    else:
+        summary = f"From {start['name']}: {route.get('distance_km', '?')} km"
+        if route.get("via"):
+            summary += " via " + ", ".join(route["via"][:3])
+        if route.get("rerouted"):
+            summary += ", detouring around a closure"
     needs = [what for word, what in MOCK_MEDICAL_NOTES if word in text]
     notes = f"Nearest shelter with space: {shel.get('name', 'n/a')}"
+    if "find_shelters" in down:
+        notes = ""
     if needs and unit != "ems":
         notes = f"Request EMS on standby: {', '.join(needs)}. " + notes
+    missing = " ".join(MOCK_MISSING[t] for t in MOCK_MISSING if t in down)
+    if missing:
+        notes = notes.rstrip()
+        notes = (notes + ("" if not notes or notes.endswith(".") else ".") + " " + missing).strip()
     seq = [
         ("geocode_location", {"text": incident["raw_text"]}),
         ("get_road_closures", {"lat": loc.get("lat"), "lon": loc.get("lon")}),
@@ -233,15 +341,21 @@ def for_model(out: dict) -> dict:
 
 
 def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: float = 0.2,
-        fault_rate: float = 0.0, fault_seed=None) -> dict:
+        fault_rate: float = 0.0, fault_seed=None, outage: str = None) -> dict:
     """on_step(entry) is called after every tool call, so the UI can stream the trace.
 
-    fault_rate: chance that each tool call fails before it runs (see FAULTS); 0 in normal use.
+    fault_rate: chance that each tool call fails before it runs (see FAULTS, MALFORMED); 0 in normal use.
+    outage: a tool in OUTAGES that is down for the whole run (every call fails); None in normal use.
     The result's "messages" is the whole conversation in chat format (with the model's reasoning,
     when vLLM returns it), used by training/collect_trajectories.py to build fine-tuning data."""
+    if outage and outage not in OUTAGES:
+        raise ValueError(f"outage must be one of {list(OUTAGES)}")
     rng = random.Random(fault_seed)
+    kind_rng = random.Random(f"{fault_seed}-kind")  # exception or bad data; keeps rng's sequence as before
+    since = time.strftime("%H:%M", time.localtime(time.time() - 47 * 60))
     mock_step = 0  # the scripted mock retries a faulted call instead of moving on
     fault_streak = {}  # tool -> injected failures in a row
+    fail_streak = {}  # tool -> unusable results in a row (the mock gives up on a tool after DOWN_AFTER)
     conn = db.connect()
     inc = dict(conn.execute("SELECT * FROM incidents WHERE id=?", (incident_id,)).fetchone())
     guard = Guard()
@@ -258,7 +372,8 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
         tm = time.time()
         content, reasoning = "", None
         if MOCK_LLM:
-            nxt = _mock_turn(mock_step, inc, results)
+            down = {t for t, n in fail_streak.items() if n >= DOWN_AFTER}
+            nxt = _mock_turn(mock_step, inc, results, down)
             if nxt is None or nxt[0] == "__final__":
                 final = nxt[1] if nxt else "Draft dispatch created and waiting for human review (mock run)."
                 break
@@ -291,22 +406,32 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
             t1 = time.time()
             err = guard.check(c["name"], c["args"]) if use_guard else None
             if err:
-                out = {"error": err, "blocked_by": "guard"}
+                out = {"error": err, "blocked_by": "guard", **({"_rule": guard.rule} if guard.rule else {})}
+            elif c["name"] == outage:  # down for the whole run
+                out = {"error": OUTAGES[outage].format(since=since), "_fault": True, "_outage": True}
             elif (fault_rate and c["name"] in FAULTS and fault_streak.get(c["name"], 0) < 2
                   and rng.random() < fault_rate):  # transient: at most 2 failures in a row per tool
-                out = {"error": FAULTS[c["name"]], "_fault": True}
+                if c["name"] in MALFORMED and kind_rng.random() < 0.5:
+                    out = {**MALFORMED[c["name"]], "_fault": True, "_malformed": True}
+                else:
+                    out = {"error": FAULTS[c["name"]], "_fault": True}
                 fault_streak[c["name"]] = fault_streak.get(c["name"], 0) + 1
             else:
                 try:
                     out = REGISTRY[c["name"]](**c["args"])
-                    guard.called.append(c["name"])
                     results[c["name"]] = out
                 except Exception as e:  # tool failure goes back to the model
                     out = {"error": f"{type(e).__name__}: {e}"}
+            if not err:
+                guard.record(c["name"], c["args"], out)
             if not out.get("_fault"):
                 fault_streak[c["name"]] = 0
-                if MOCK_LLM:
-                    mock_step += 1
+            # The mock moves on after a usable result (or a real tool error), and gives up on a
+            # tool after DOWN_AFTER bad results in a row, like the prompt tells the model to.
+            bad = out.get("_fault") or not usable(c["name"], out) and "error" not in out
+            fail_streak[c["name"]] = fail_streak.get(c["name"], 0) + 1 if bad else 0
+            if MOCK_LLM and (not bad or fail_streak[c["name"]] >= DOWN_AFTER):
+                mock_step += 1
             entry = {"step": step, "tool": c["name"], "args": c["args"], "result": out,
                      "guard": "off" if not use_guard else ("blocked" if err else "pass"),
                      "ms": round((time.time() - t1) * 1000), "model_ms": model_ms}

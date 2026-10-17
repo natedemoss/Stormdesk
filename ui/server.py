@@ -87,6 +87,10 @@ def state():
         "road_graph": ROAD_GRAPH.exists(),
         "incidents": [i for i in incidents if not hidden(i)],
         "filtered_out": sum(hidden(i) for i in incidents),
+        "dispatches": [dict(d, plan=json.loads(d.pop("plan_json"))) for d in rows(
+            "SELECT d.id, d.incident_id, d.status, d.created_at, d.plan_json, i.raw_text "
+            "FROM dispatch_queue d JOIN incidents i ON i.id=d.incident_id "
+            "ORDER BY d.id DESC")],
         "closures": rows("SELECT id, road, lat, lon, lat2, lon2, description, source, verified, "
                          "reported_at FROM closures"),
         "shelters": rows("SELECT * FROM shelters"),

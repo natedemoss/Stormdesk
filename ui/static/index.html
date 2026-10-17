@@ -93,9 +93,22 @@
     <section class="col side">
       <nav class="tabs" role="tablist">
         <button role="tab" class="on" data-tab="agent">Agent</button>
+        <button role="tab" data-tab="dispatches">Dispatches <span id="dispatch-count" class="tab-flag"></span></button>
         <button role="tab" data-tab="sandbox">Sandbox <span class="tab-flag" id="sandbox-flag"></span></button>
       </nav>
       <div class="pane" id="pane-agent"></div>
+      <div class="pane" id="pane-dispatches" hidden>
+        <div class="dispatch-toolbar">
+          <label for="dispatch-filter">Dispatches</label>
+          <select id="dispatch-filter">
+            <option value="pending_review">Pending review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All dispatches</option>
+          </select>
+        </div>
+        <div id="dispatch-list"></div>
+      </div>
       <div class="pane" id="pane-sandbox" hidden></div>
     </section>
   </main>

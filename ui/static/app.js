@@ -535,7 +535,7 @@ function renderAgent() {
   if (S.draft) html += ticketHTML(S.draft);
   pane.innerHTML = html;
   pane.querySelectorAll(".log li").forEach((li) => (li.onclick = () => li.classList.toggle("open")));
-  const ap = $("#approve"), rj = $("#reject");
+  const ap = pane.querySelector("[data-decision=approve]"), rj = pane.querySelector("[data-decision=reject]");
   if (ap) ap.onclick = () => decide("approve");
   if (rj) rj.onclick = () => decide("reject");
   if (S.running) pane.scrollTop = pane.scrollHeight;
@@ -559,7 +559,7 @@ function ticketHTML(d) {
       <dt>Route</dt><dd${/^route unavailable/i.test(p.route || "") ? ` class="tk-warn"` : ""}>${esc(p.route)}</dd>
       <dt>Notes</dt><dd>${esc(p.notes)}</dd>
     </dl>
-    ${st === "pending_review" ? `<div class="tk-actions"><button class="btn ok" id="approve">Approve</button><button class="btn ghost" id="reject">Reject</button></div>` : ""}
+    ${st === "pending_review" ? `<div class="tk-actions"><button class="btn ok" data-decision="approve">Approve</button><button class="btn ghost" data-decision="reject">Reject</button></div>` : ""}
     <div class="tk-foot">StormDesk has no way to send this. A dispatcher relays approved plans by radio or phone.</div>
   </div>`;
 }
@@ -642,13 +642,56 @@ function renderSandbox() {
   };
 }
 
+function showTab(name) {
+  S.tab = name;
+  document.querySelectorAll(".tabs button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.tab === name);
+    b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  });
+  for (const tab of ["agent", "dispatches", "sandbox"]) $("#pane-" + tab).hidden = tab !== name;
+  if (name === "sandbox") renderSandbox();
+}
+
+let dispatchHTML = "";
+function renderDispatches() {
+  const drafts = S.state?.dispatches || [];
+  const pending = drafts.filter((d) => d.status === "pending_review").length;
+  $("#dispatch-count").textContent = pending;
+  $("#dispatch-count").classList.toggle("on", pending > 0);
+  const filter = $("#dispatch-filter").value;
+  const visible = drafts.filter((d) => filter === "all" || d.status === filter);
+  // Keep focus and scroll stable during polling, and avoid replaying ticket animations.
+  const key = JSON.stringify([filter, visible]);
+  if (key === dispatchHTML) return;
+  dispatchHTML = key;
+  $("#dispatch-list").innerHTML = visible.map((d) => {
+    S.poppedDraft = d.id;
+    return `<article class="dispatch-entry" data-draft="${d.id}">
+      <div class="dispatch-report"><b>Report #${d.incident_id}</b><p>${esc(d.raw_text)}</p>
+      <button class="btn ghost" data-report="${d.incident_id}">View route and tool calls</button></div>
+      ${ticketHTML(d)}</article>`;
+  }).join("") || `<div class="empty">${filter === "pending_review" ? "No dispatches waiting for review. Run Work queue to create drafts; they will appear here as they finish." : "No dispatches in this view."}</div>`;
+}
+$("#dispatch-filter").addEventListener("change", renderDispatches);
+$("#dispatch-list").addEventListener("click", async (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  try {
+    if (button.dataset.report) {
+      if (S.running) { toast("Wait for the agent to finish."); return; }
+      await select(+button.dataset.report); showTab("agent");
+    } else if (button.dataset.decision) {
+      const id = +button.closest("[data-draft]").dataset.draft;
+      button.disabled = true;
+      await decide(button.dataset.decision, id);
+    }
+  } catch (err) { toast(err.message, 6000); }
+  finally { button.disabled = false; }
+});
+
 document.querySelector(".tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
-  S.tab = b.dataset.tab;
-  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-  $("#pane-agent").hidden = S.tab !== "agent";
-  $("#pane-sandbox").hidden = S.tab !== "sandbox";
-  if (S.tab === "sandbox") renderSandbox();
+  showTab(b.dataset.tab);
 });
 
 // ------------------------------------------------------------------ actions
@@ -690,11 +733,11 @@ async function runAgent() {
   await refresh(); renderIncident(); renderAgent();
 }
 
-async function decide(kind) {
-  if (!S.draft) return;
-  await api(`/api/drafts/${S.draft.id}/${kind}`, { method: "POST" });
-  S.draft.status = kind === "approve" ? "approved" : "rejected";
-  S.slamDraft = S.draft.id;
+async function decide(kind, id = S.draft?.id) {
+  if (!id) return;
+  await api(`/api/drafts/${id}/${kind}`, { method: "POST" });
+  if (S.draft?.id === id) S.draft.status = kind === "approve" ? "approved" : "rejected";
+  S.slamDraft = id;
   toast(kind === "approve" ? "Approved. Nothing was sent; relay it to the unit." : "Draft rejected.");
   await refresh(); renderAgent();
 }
@@ -729,6 +772,8 @@ $("#work-queue").addEventListener("click", async () => {
   if (S.qrun && !S.qrun.end) return;
   const btn = $("#work-queue");
   btn.disabled = true; btn.textContent = "Working";
+  $("#dispatch-filter").value = "pending_review";
+  renderDispatches(); showTab("dispatches");
   S.qrun = { total: 0, done: 0, counts: {}, working: new Set(), t0: Date.now(), end: null };
   const tick = setInterval(renderQrun, 250);
   try {
@@ -789,7 +834,7 @@ $("#reset").addEventListener("click", async () => {
 // ------------------------------------------------------------------ polling
 async function refresh() {
   S.state = await api("/api/state");
-  renderStatus(); renderQueue();
+  renderStatus(); renderQueue(); renderDispatches();
 }
 async function boot() {
   await refresh();

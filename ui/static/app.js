@@ -144,6 +144,19 @@ function updateDemoOn() {  // what the Demo menu has switched away from normal, 
 }
 ["guard", "faults", "outage"].forEach((id) => $("#" + id).addEventListener("change", updateDemoOn));
 updateDemoOn();
+
+// Light / dark. The choice is kept in this browser only; light is the default.
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("#theme").textContent = t === "dark" ? "☀ Light" : "☾ Dark";
+  try { localStorage.setItem("stormdesk-theme", t); } catch { /* private window: fine */ }
+}
+setTheme((() => { try { return localStorage.getItem("stormdesk-theme"); } catch { return null; } })() || "light");
+$("#theme").addEventListener("click", () => {
+  document.documentElement.classList.add("theme-anim");  // ease the colors only during the switch
+  setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  setTimeout(() => document.documentElement.classList.remove("theme-anim"), 450);
+});
 document.addEventListener("click", (e) => {  // close the Demo menu on a click outside it
   const m = $("#demo-menu"); if (m.open && !m.contains(e.target)) m.open = false;
 });
@@ -156,10 +169,12 @@ function renderQueue() {
   const open = inc.filter((i) => i.status === "new" || i.status === "drafted");
   $("#queue-meta").textContent = `${open.length} open · ${S.state.filtered_out} filtered`;
   const first = S.known.size === 0;
-  const html = inc.map((i) => {
+  const html = inc.map((i, n) => {
     const closed = i.status === "approved" || i.status === "rejected";
     const arrived = !first && !S.known.has(i.id);
-    return `<li class="row u${i.urgency}${i.id === S.selected ? " sel" : ""}${closed ? " closed" : ""}${arrived ? " arrived" : ""}" data-id="${i.id}">
+    // first load: cards rise in one after another (only the first dozen, so it stays quick)
+    const intro = first && n < 12 ? ` intro" style="--i:${n}` : "";
+    return `<li class="row u${i.urgency}${i.id === S.selected ? " sel" : ""}${closed ? " closed" : ""}${arrived ? " arrived" : ""}${intro}" data-id="${i.id}">
       <span class="urg">${i.urgency}</span>
       <div>
         <div class="row-top"><span class="row-cat">${esc(CATS[i.category] || i.category)}</span><span>${hhmm(i.created_at)}</span></div>
@@ -524,9 +539,14 @@ function renderAgent() {
 function ticketHTML(d) {
   const p = d.plan, st = d.status;
   const stamp = st === "approved" ? "approved" : st === "rejected" ? "rejected" : "draft";
-  return `<div class="ticket">
+  // animate once: the card pops in when a draft first appears, the stamp lands when it is decided
+  const pop = S.poppedDraft !== d.id ? " pop" : "";
+  S.poppedDraft = d.id;
+  const slam = S.slamDraft === d.id ? " slam" : "";
+  S.slamDraft = null;
+  return `<div class="ticket${pop}">
     <div class="tk-head"><span class="tk-title">Dispatch <span class="tk-id">#${d.id} · ${hhmm(d.created_at)}</span></span>
-      <span class="stamp ${stamp}">${stamp === "draft" ? "Draft, not sent" : stamp}</span></div>
+      <span class="stamp ${stamp}${slam}">${stamp === "draft" ? "Draft, not sent" : stamp}</span></div>
     <dl class="tk-body">
       <dt>Unit</dt><dd><span class="tk-unit">${esc(UNITS[p.unit_type] || p.unit_type)}</span>${UNIT_DESC[p.unit_type] ? `<div class="tk-desc">${esc(UNIT_DESC[p.unit_type])}</div>` : ""}</dd>
       <dt>Priority</dt><dd>${p.priority} of 5</dd>
@@ -669,6 +689,7 @@ async function decide(kind) {
   if (!S.draft) return;
   await api(`/api/drafts/${S.draft.id}/${kind}`, { method: "POST" });
   S.draft.status = kind === "approve" ? "approved" : "rejected";
+  S.slamDraft = S.draft.id;
   toast(kind === "approve" ? "Approved. Nothing was sent; relay it to the unit." : "Draft rejected.");
   await refresh(); renderAgent();
 }

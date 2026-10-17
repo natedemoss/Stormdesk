@@ -8,6 +8,7 @@ const S = {
   state: null, selected: null, trace: [], draft: null, final: "", stats: null,
   running: false, known: new Set(), queueHTML: "", roadsCache: new Map(), frame: null,
   animateRoute: false, tab: "agent", sandbox: null, redteam: null,
+  userFrame: null, view: null,  // userFrame: where the dispatcher panned/zoomed to; null = fit automatically
 };
 
 const CATS = {
@@ -152,9 +153,10 @@ function fitFrame(points) {
   const m = Math.max(x1 - x0, y1 - y0, 0.02) * 0.1 + 0.004;
   return { x0: x0 - m, x1: x1 + m, y0: y0 - m, y1: y1 + m };
 }
-function projector(f, hasCard) {
+function projector(f, hasCard, fill = false) {
   const { W, H } = mapSize();
-  const padL = 40, padR = hasCard ? 310 : 40, padT = 56, padB = 70;
+  // an automatic fit leaves room for the route card and legend; a panned/zoomed view fills the box
+  const [padL, padR, padT, padB] = fill ? [0, 0, 0, 0] : [40, hasCard ? 310 : 40, 56, 70];
   const k = Math.cos(((f.y0 + f.y1) / 2) * Math.PI / 180);
   // a narrow window can leave less room than the padding; keep the drawable area positive
   const aw = Math.max(W - padL - padR, 120), ah = Math.max(H - padT - padB, 120);
@@ -234,11 +236,13 @@ async function drawMap() {
     pts = [staging, ...st.shelters.map((s) => [s.lon, s.lat]),
            ...st.closures.filter((c) => Math.abs(c.lat - home.lat) < 0.4 && Math.abs(c.lon - home.lon) < 0.4).map((c) => [c.lon, c.lat])];
   }
-  const f = fitFrame(pts);
+  const f = S.userFrame || fitFrame(pts);
   S.frame = f;
-  const { P, W, H, pxPerM, view } = projector(f, !!route);
+  const { P, W, H, pxPerM, view } = projector(f, !!route, !!S.userFrame);
+  S.view = view;
   const svg = $("#map");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  $("#map-fit").hidden = !S.userFrame;
   const inView = (lon, lat) => lon >= view.x0 && lon <= view.x1 && lat >= view.y0 && lat <= view.y1;
   const out = [`<g id="roads"></g>`];
   // Labels are placed last, around their markers, so they never stack on each other.
@@ -320,6 +324,62 @@ async function drawMap() {
   if (g) g.innerHTML = `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/><path class="r0c" d="${d[0]}"/>`;
   $("#attrib").textContent = roads.graph ? "Roads © OpenStreetMap contributors, cached locally" : "No road graph cached";
 }
+
+// Pan by dragging, zoom with the wheel or the +/- buttons, "Fit" (or double-click) goes back to the
+// automatic view. While dragging only the viewBox moves; the map is redrawn once on release.
+function zoomMap(factor, cx, cy) {  // factor < 1 zooms in; (cx, cy) in map pixels stays put
+  const v = S.view; if (!v) return;
+  const { W, H } = mapSize();
+  const lon = v.x0 + (cx / W) * (v.x1 - v.x0), lat = v.y1 - (cy / H) * (v.y1 - v.y0);
+  const span = Math.min((v.x1 - v.x0) * factor, 6);
+  if (span < 0.004) return;  // closer than ~400 m shows nothing useful
+  S.userFrame = S.view = { x0: lon - (lon - v.x0) * factor, x1: lon + (v.x1 - lon) * factor,
+                           y0: lat - (lat - v.y0) * factor, y1: lat + (v.y1 - lat) * factor };
+  if (!S.mapQueued) {  // trackpads send many wheel events; draw once per frame
+    S.mapQueued = true;
+    requestAnimationFrame(() => { S.mapQueued = false; drawMap(); });
+  }
+}
+function fitMap() { S.userFrame = null; drawMap(); }
+(() => {
+  const svg = $("#map");
+  let drag = null;
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !S.view) return;
+    drag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add("dragging");
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    drag.dx = e.clientX - drag.x; drag.dy = e.clientY - drag.y;
+    const { W, H } = mapSize();
+    svg.setAttribute("viewBox", `${-drag.dx} ${-drag.dy} ${W} ${H}`);
+  });
+  const end = () => {
+    if (!drag) return;
+    const { dx, dy } = drag; drag = null;
+    svg.classList.remove("dragging");
+    if (Math.abs(dx) + Math.abs(dy) < 3) { drawMap(); return; }  // a click, not a drag
+    const v = S.view, { W, H } = mapSize();
+    const mx = (dx / W) * (v.x1 - v.x0), my = (dy / H) * (v.y1 - v.y0);
+    S.userFrame = { x0: v.x0 - mx, x1: v.x1 - mx, y0: v.y0 + my, y1: v.y1 + my };
+    drawMap();
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;  // lines to pixels
+    zoomMap(Math.exp(Math.max(-300, Math.min(300, dy)) * 0.002), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  svg.addEventListener("dblclick", fitMap);
+  const mid = () => { const { W, H } = mapSize(); return [W / 2, H / 2]; };
+  $("#map-in").onclick = () => zoomMap(0.67, ...mid());
+  $("#map-out").onclick = () => zoomMap(1.5, ...mid());
+  $("#map-fit").onclick = fitMap;
+})();
 
 function renderRouteCard(route) {
   const box = $("#route-card");
@@ -467,7 +527,7 @@ document.querySelector(".tabs").addEventListener("click", (e) => {
 
 // ------------------------------------------------------------------ actions
 async function select(id) {
-  S.selected = id;
+  S.selected = id; S.userFrame = null;
   const d = await api(`/api/incidents/${id}`);
   S.trace = d.trace; S.draft = d.draft; S.final = ""; S.stats = null;
   renderQueue(); renderIncident(); renderAgent(); drawMap();
@@ -475,7 +535,7 @@ async function select(id) {
 
 async function runAgent() {
   if (S.running || !S.selected) return;
-  S.running = true; S.trace = []; S.draft = null; S.final = ""; S.stats = null;
+  S.running = true; S.trace = []; S.draft = null; S.final = ""; S.stats = null; S.userFrame = null;
   renderIncident(); renderAgent(); drawMap();
   try {
     const r = await fetch(`/api/incidents/${S.selected}/run?guard=${$("#guard").checked}`, { method: "POST" });

@@ -49,6 +49,11 @@
       <div class="incident" id="incident" hidden></div>
       <div class="mapbox">
         <svg id="map" class="map" role="img" aria-label="Route map"></svg>
+        <div class="map-zoom" title="Drag to move, scroll to zoom">
+          <button type="button" id="map-in" aria-label="Zoom in">+</button>
+          <button type="button" id="map-out" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="map-fit" class="fit" hidden>Fit</button>
+        </div>
         <div class="route-card" id="route-card" hidden></div>
         <div class="legend">
           <span><i class="k-route"></i>Planned route</span>

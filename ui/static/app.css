@@ -127,7 +127,13 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .inc-meta b { color: var(--ink-2); font-weight: 600; }
 .inc-text { font-size: 16px; line-height: 1.35; margin-top: 1px; }
 .mapbox { position: relative; flex: 1; min-height: 0; }
-.map { width: 100%; height: 100%; display: block; }
+.map { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+.map.dragging { cursor: grabbing; }
+.map-zoom { position: absolute; left: 12px; top: 52px; display: flex; flex-direction: column; border: 1px solid var(--ink); background: var(--sheet); }
+.map-zoom button { width: 28px; height: 28px; border: 0; background: none; font: 600 16px var(--sans); color: var(--ink); cursor: pointer; }
+.map-zoom button + button { border-top: 1px solid var(--rule-2); }
+.map-zoom button:hover { background: var(--rule-2); }
+.map-zoom .fit { width: auto; padding: 0 4px; font-size: 11px; }
 .map .r2 { stroke: #c9cbc1; stroke-width: .8; fill: none; }
 .map .r1 { stroke: #b0b3a7; stroke-width: 1.6; fill: none; }
 .map .r0 { stroke: #8f9385; stroke-width: 2.8; fill: none; }

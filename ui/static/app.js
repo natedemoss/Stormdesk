@@ -425,8 +425,8 @@ function renderRouteCard(route) {
 // ------------------------------------------------------------------ agent pane
 function logItem(t, i) {
   const r = t.result;
-  const kind = r.blocked_by ? "blocked" : ("error" in r ? "err" : t.guard === "off" ? "off" : "pass");
-  const label = { blocked: "Guard blocked", err: "Error", off: "No guard", pass: "OK" }[kind];
+  const kind = r.blocked_by ? "blocked" : r._fault ? "fault" : ("error" in r ? "err" : t.guard === "off" ? "off" : "pass");
+  const label = { blocked: "Guard blocked", fault: "Injected fault", err: "Error", off: "No guard", pass: "OK" }[kind];
   const enter = S.running && i === S.trace.length - 1 ? " enter" : "";
   return `<li class="${kind}${enter}">
     <div class="lg-head"><span class="lg-n">${String(i + 1).padStart(2, "0")}</span><span class="lg-tool">${esc(t.tool)}<span class="lg-ms">${t.ms ?? ""}${t.ms != null ? " ms" : ""}</span></span><span class="lg-st ${kind}">${label}</span></div>
@@ -440,7 +440,8 @@ function renderAgent() {
   const i = S.state?.incidents.find((x) => x.id === S.selected);
   if (!i) { pane.innerHTML = `<div class="empty">Select a report. The agent's tool calls appear here as it works.</div>`; return; }
   const calls = S.trace.length, blocks = S.trace.filter((t) => t.result.blocked_by).length;
-  let html = `<div class="section"><span>Tool calls</span><span class="stats">${calls ? `<span><b>${calls}</b>calls</span><span><b>${blocks}</b>blocked</span>${S.stats?.seconds != null ? `<span><b>${S.stats.seconds}</b>s</span>` : ""}` : ""}</span></div>`;
+  const faults = S.trace.filter((t) => t.result._fault).length;
+  let html = `<div class="section"><span>Tool calls</span><span class="stats">${calls ? `<span><b>${calls}</b>calls</span><span><b>${blocks}</b>blocked</span>${faults ? `<span><b>${faults}</b>faults</span>` : ""}${S.stats?.seconds != null ? `<span><b>${S.stats.seconds}</b>s</span>` : ""}` : ""}</span></div>`;
   if (!calls && !S.running) html += `<div class="empty">Not run yet.</div>`;
   else html += `<ol class="log">${S.trace.map(logItem).join("")}</ol>`;
   if (S.running) html += `<div class="thinking">${S.state.mode === "mock" ? "Next step" : "Lightning is choosing the next tool"}</div>`;
@@ -571,7 +572,7 @@ async function runAgent() {
   S.running = true; S.trace = []; S.draft = null; S.final = ""; S.stats = null; S.userFrame = null;
   renderIncident(); renderAgent(); drawMap();
   try {
-    const r = await fetch(`/api/incidents/${S.selected}/run?guard=${$("#guard").checked}`, { method: "POST" });
+    const r = await fetch(`/api/incidents/${S.selected}/run?guard=${$("#guard").checked}&faults=${$("#faults").checked ? 0.3 : 0}`, { method: "POST" });
     const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for (;;) {

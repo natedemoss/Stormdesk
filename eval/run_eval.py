@@ -2,11 +2,13 @@
 
     python eval/run_eval.py              # both modes
     python eval/run_eval.py --no-guard   # baseline only
+    python eval/run_eval.py --faults 0.3 # 30% of tool calls fail before running: does it recover?
 
 Metrics per run:
   tool_recall     share of expected tools the agent actually called successfully
   guard_blocks    tool calls the guard rejected (and the model then had to fix)
-  tool_errors     tool calls that crashed
+  tool_errors     tool calls that crashed (not counting injected faults)
+  faults          tool calls failed on purpose by --faults
   unit_ok         drafted unit type is one of the acceptable ones
   asked_location  for vague reports, agent did NOT draft and asked for location
   rerouted        for cases marked expect_reroute, plan_route detoured around a closure
@@ -56,11 +58,11 @@ def summarize(rows):
     return {k: mean(k) for k in rows[0] if k != "tag"}
 
 
-def run_mode(cases, use_guard):
+def run_mode(cases, use_guard, fault_rate=0.0):
     rows = []
-    for c in cases:
+    for n, c in enumerate(cases):
         inc = ingest(c["text"], "eval")
-        res = agent.run(inc["id"], use_guard=use_guard)
+        res = agent.run(inc["id"], use_guard=use_guard, fault_rate=fault_rate, fault_seed=n)
         rows.append({**score(c, res), "tag": c.get("tag", "untagged")})
     out = {"all": summarize(rows), "cases": len(rows)}
     for tag in sorted({r["tag"] for r in rows}):
@@ -71,10 +73,17 @@ def run_mode(cases, use_guard):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-guard", action="store_true")
+    ap.add_argument("--faults", type=float, default=0.0,
+                    help="inject tool failures at this rate (e.g. 0.3), guard on; writes results_faults.json")
     a = ap.parse_args()
     conn = db.connect()
     db.init(conn)
     cases = [json.loads(l) for l in open(HERE / "incidents.jsonl")]
+    if a.faults:
+        report = {f"with_guard_faults_{a.faults}": run_mode(cases, True, a.faults)}
+        print(json.dumps(report, indent=2))
+        (HERE / "results_faults.json").write_text(json.dumps(report, indent=2))
+        return
     report = {"baseline_no_guard": run_mode(cases, False)}
     if not a.no_guard:
         report["with_guard"] = run_mode(cases, True)

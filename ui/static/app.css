@@ -220,6 +220,7 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .lg-st.pass { color: var(--ok); } .lg-st.blocked { color: var(--closed); } .lg-st.err { color: var(--unv); } .lg-st.off { color: var(--mute); }
 .lg-sum { margin: 2px 0 0 30px; font-size: 13px; color: var(--ink-2); }
 .log li.blocked .lg-sum { color: var(--closed); }
+.lg-st.fault { color: #9a5b00; } .log li.fault .lg-sum { color: #9a5b00; }
 .lg-fresh { margin: 1px 0 0 30px; font-size: 11.5px; color: var(--faint); }
 .lg-ms { font: 11px var(--mono); color: var(--faint); margin-left: 6px; }
 .log pre {

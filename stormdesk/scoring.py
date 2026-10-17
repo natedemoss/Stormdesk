@@ -37,7 +37,9 @@ def score(case: dict, trace: list, drafted: bool) -> dict:
     return {
         "tool_recall": recall,
         "guard_blocks": sum(t["result"].get("blocked_by") == "guard" for t in trace),
-        "tool_errors": sum("error" in t["result"] and t["result"].get("blocked_by") != "guard" for t in trace),
+        "tool_errors": sum("error" in t["result"] and t["result"].get("blocked_by") != "guard"
+                           and not t["result"].get("_fault") for t in trace),
+        "faults": sum(bool(t["result"].get("_fault")) for t in trace),  # injected (run_eval.py --faults)
         "unit_ok": check("expect_unit", bool(draft) and draft["args"].get("unit_type") in (case.get("expect_unit") or [])),
         "asked_location": check("expect_ask_for_location", not drafted),
         "rerouted": check("expect_reroute", bool(route.get("rerouted"))),

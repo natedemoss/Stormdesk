@@ -6,6 +6,7 @@ Guard layers (before any tool runs):
 Failures are sent back to the model as a tool error so it can correct itself.
 """
 import json
+import random
 import time
 
 import jsonschema
@@ -64,7 +65,25 @@ When a responder is needed:
    3 = welfare checks and supplies. 2 = road clearing with no one at risk.
    Notes: the shelter, if any, and "Request EMS on standby: <need>" when someone has a
    medical need and the unit is not ems.
-Each tool reports how old its data is; mention it when the data may be stale."""
+Each tool reports how old its data is; mention it when the data may be stale.
+
+Tools can fail. Read the error: fix bad arguments; retry a timeout or a locked database (up to
+twice). If a tool stays down, carry on with what you have and say in the notes what is missing.
+Without a route you cannot draft: tell the dispatcher which step failed so they can route by hand."""
+
+# Fault injection (console "Faults" switch, run_eval.py --faults): a tool call fails before it runs,
+# with the kind of error the real tool can raise, so recovery can be shown and measured. Faults are
+# transient like real timeouts and locks: one tool fails at most twice in a row. The model
+# sees only the error; the trace marks it "_fault" (stripped before the model sees the result).
+FAULTS = {
+    "geocode_location": "OperationalError: database is locked",
+    "get_road_closures": "TimeoutError: closure cache read timed out after 5 s",
+    "get_weather_alerts": "OperationalError: database is locked",
+    "find_shelters": "TimeoutError: shelter query timed out after 5 s",
+    "plan_route": "TimeoutError: routing engine did not answer within 10 s",
+    "report_closure": "OperationalError: database is locked",
+    "draft_dispatch": "OperationalError: database is locked",
+}
 
 
 class Guard:
@@ -211,11 +230,16 @@ def for_model(out: dict) -> dict:
     return {k: v for k, v in out.items() if not k.startswith("_")}
 
 
-def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: float = 0.2) -> dict:
+def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: float = 0.2,
+        fault_rate: float = 0.0, fault_seed=None) -> dict:
     """on_step(entry) is called after every tool call, so the UI can stream the trace.
 
+    fault_rate: chance that each tool call fails before it runs (see FAULTS); 0 in normal use.
     The result's "messages" is the whole conversation in chat format (with the model's reasoning,
     when vLLM returns it), used by training/collect_trajectories.py to build fine-tuning data."""
+    rng = random.Random(fault_seed)
+    mock_step = 0  # the scripted mock retries a faulted call instead of moving on
+    fault_streak = {}  # tool -> injected failures in a row
     conn = db.connect()
     inc = dict(conn.execute("SELECT * FROM incidents WHERE id=?", (incident_id,)).fetchone())
     guard = Guard()
@@ -232,7 +256,7 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
         tm = time.time()
         content, reasoning = "", None
         if MOCK_LLM:
-            nxt = _mock_turn(step, inc, results)
+            nxt = _mock_turn(mock_step, inc, results)
             if nxt is None or nxt[0] == "__final__":
                 final = nxt[1] if nxt else "Draft dispatch created and waiting for human review (mock run)."
                 break
@@ -266,6 +290,10 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
             err = guard.check(c["name"], c["args"]) if use_guard else None
             if err:
                 out = {"error": err, "blocked_by": "guard"}
+            elif (fault_rate and c["name"] in FAULTS and fault_streak.get(c["name"], 0) < 2
+                  and rng.random() < fault_rate):  # transient: at most 2 failures in a row per tool
+                out = {"error": FAULTS[c["name"]], "_fault": True}
+                fault_streak[c["name"]] = fault_streak.get(c["name"], 0) + 1
             else:
                 try:
                     out = REGISTRY[c["name"]](**c["args"])
@@ -273,6 +301,10 @@ def run(incident_id: int, use_guard: bool = True, on_step=None, temperature: flo
                     results[c["name"]] = out
                 except Exception as e:  # tool failure goes back to the model
                     out = {"error": f"{type(e).__name__}: {e}"}
+            if not out.get("_fault"):
+                fault_streak[c["name"]] = 0
+                if MOCK_LLM:
+                    mock_step += 1
             entry = {"step": step, "tool": c["name"], "args": c["args"], "result": out,
                      "guard": "off" if not use_guard else ("blocked" if err else "pass"),
                      "ms": round((time.time() - t1) * 1000), "model_ms": model_ms}

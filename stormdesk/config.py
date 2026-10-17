@@ -49,4 +49,4 @@ def osm_county(county: str) -> str:
     """'Burke' -> 'Burke County, North Carolina', the form OSM place lookups expect."""
     return f"{county} County, North Carolina"
 
-MAX_AGENT_STEPS = 12  # a normal run uses 6-7 calls; leaves room for guard corrections
+MAX_AGENT_STEPS = 16  # a normal run uses 6-7 calls; leaves room for guard corrections and retries

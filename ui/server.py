@@ -154,8 +154,10 @@ def incident(iid: int):
 
 
 @app.post("/api/incidents/{iid}/run")
-def run_agent(iid: int, guard: bool = True):
-    """Runs the agent and streams one JSON line per tool call, then a done line."""
+def run_agent(iid: int, guard: bool = True, faults: float = 0.0):
+    """Runs the agent and streams one JSON line per tool call, then a done line.
+    faults: share of tool calls to fail on purpose (the console's Faults switch), to show recovery."""
+    faults = min(max(faults, 0.0), 0.5)
     q = queue.Queue()
 
     def on_step(entry):
@@ -165,7 +167,7 @@ def run_agent(iid: int, guard: bool = True):
 
     def work():
         try:
-            res = agent.run(iid, use_guard=guard, on_step=on_step)
+            res = agent.run(iid, use_guard=guard, on_step=on_step, fault_rate=faults)
             q.put({"type": "done", "final": res["final"], "seconds": res["seconds"],
                    "drafted": res["drafted"], "calls": len(res["trace"])})
         except Exception as e:  # surface it in the console instead of a dead stream

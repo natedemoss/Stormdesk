@@ -29,6 +29,8 @@ through **NVIDIA NeMo Gym** (`gym/stormdesk_dispatch`, same scoring code) score 
 - **Triage fine-tune:** macro F1 **0.755** vs 0.416 for the untuned Qwen3-1.7B on the HumAID test split.
 - **Speed:** triage 0.46 s, Lightning's life-at-risk second opinion 2.2 s (in parallel), Lightning's
   first tool call 0.42 s, about 9 s from report to draft.
+- **Recovery:** `python eval/run_eval.py --faults 0.3` fails about 1 in 3 tool calls on purpose (timeouts,
+  a locked database) to measure how the agent recovers; the console's **Faults** switch shows it live.
 - **Safety:** the guard blocked 1 call in 64 runs; no tool errors. OpenShell red-team attempts
   (internet, SMS gateway, files outside the app) are denied.
 

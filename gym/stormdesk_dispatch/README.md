@@ -45,6 +45,7 @@ The verifier reads the tool-call trace and checks, where the task asks for it:
 | `no_draft_ok` | noise or injected instructions: nothing was drafted |
 | `pets_ok`, `medical_ok` | `find_shelters` was called with `has_pets` / `needs_medical` |
 | `rerouted` | the route detoured around a closure |
+| `station_ok` | a fire or EMS route starts at the nearest station that `geocode_location` returned |
 
 `reward` is the mean of `tool_recall` and every check that applies (0 to 1). `resolved` is true
 only when all of them pass. Key metrics: mean reward, resolved, unit_ok, asked_location,

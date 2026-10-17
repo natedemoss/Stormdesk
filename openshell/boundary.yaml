@@ -1,0 +1,36 @@
+# The most access a StormDesk agent sandbox may EVER have (the "boundary").
+#
+# The OpenShell policy prover checks a candidate policy against this file with an
+# SMT solver and either proves it stays inside, or prints a counterexample:
+#   openshell-prover check openshell/policy.yaml --boundary openshell/boundary.yaml
+#   -> result: within_boundary
+#   openshell-prover check openshell/bad-policy.yaml --boundary openshell/boundary.yaml
+#   -> result: exceeds_boundary, counterexample names the SMS gateway
+#
+# Rule of thumb this encodes: local inference only, no outbound messaging.
+# The prover compares filesystem access path by path, so the paths match policy.yaml.
+
+version: 1
+
+filesystem_policy:
+  include_workdir: false
+  read_only: [/usr, /lib, /etc, /app, /var/log, /proc]
+  read_write: [/tmp]
+
+landlock:
+  compatibility: hard_requirement
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+  local_inference_only:
+    endpoints:
+      - host: host.openshell.internal
+        ports: [8000, 8001]
+        protocol: rest
+        enforcement: enforce
+        access: read-write
+    binaries:
+      - path: /usr/local/bin/python3.12

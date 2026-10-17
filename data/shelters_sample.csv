@@ -1,0 +1,6 @@
+id,name,county,lat,lon,capacity,occupancy,accepts_pets,medical
+S1,Marion Community Building (SAMPLE),McDowell,35.6837,-82.0110,180,142,1,0
+S2,McDowell High School Gym (SAMPLE),McDowell,35.6620,-82.0280,400,395,0,1
+S3,Nebo Elementary (SAMPLE),McDowell,35.7180,-81.9230,150,60,1,0
+S4,Old Fort Baptist Church (SAMPLE),McDowell,35.6290,-82.1800,90,90,0,0
+S5,Pleasant Gardens Fire Dept (SAMPLE),McDowell,35.6900,-82.0600,60,22,0,1

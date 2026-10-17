@@ -1,0 +1,11 @@
+[
+  {"id": "sample-1", "road": "I-40 (sample)", "county": "McDowell", "lat": 35.6230, "lon": -82.2100,
+   "description": "SAMPLE: Interstate closed, slope failure near Old Fort grade", "reported_at": "2026-10-10T08:00:00Z"},
+  {"id": "sample-2", "road": "Mill Creek Rd (sample)", "county": "McDowell", "lat": 35.6480, "lon": -82.2000,
+   "description": "SAMPLE: Bridge washed out", "reported_at": "2026-10-10T09:30:00Z"},
+  {"id": "sample-3", "road": "US-221 (sample)", "county": "McDowell", "lat": 35.7700, "lon": -82.0500,
+   "description": "SAMPLE: Trees and power lines down, impassable", "reported_at": "2026-10-10T10:15:00Z"},
+  {"id": "sample-4", "road": "Sugar Hill Rd (sample)", "county": "McDowell", "lat": 35.66864, "lon": -82.01855,
+   "lat2": 35.65158, "lon2": -82.03205,
+   "description": "SAMPLE: Road washed out for about 2 km south of Marion", "reported_at": "2026-10-10T11:00:00Z"}
+]

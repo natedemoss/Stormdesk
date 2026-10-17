@@ -1,0 +1,8 @@
+-e nemo-gym[dev] @ ../../
+# StormDesk's tool dependencies (the stormdesk package itself is imported from STORMDESK_ROOT)
+python-dotenv>=1.0
+openai>=1.40
+jsonschema>=4.21
+requests>=2.31
+osmnx>=1.9
+networkx>=3.2

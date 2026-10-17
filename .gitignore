@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/stormdesk.db
+data/eval.db
+data/cache/
+training/data/
+training/outputs/
+*.graphml
+.test_tmp/
+openshell/prover-*.txt
+cache/
+training/data_6k/
+eval/results.json
+PLAN.md

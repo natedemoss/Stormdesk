@@ -1,0 +1,22 @@
+# core
+openai>=1.40
+python-dotenv>=1.0
+requests>=2.31
+pydantic>=2.6
+jsonschema>=4.21
+pyyaml>=6.0
+
+# offline routing
+osmnx>=1.9
+networkx>=3.2
+
+# UI
+fastapi>=0.110
+uvicorn>=0.29
+
+# training (GPU box only)
+# vllm>=0.27.1
+# unsloth
+# trl
+# datasets>=2.18
+# scikit-learn>=1.4

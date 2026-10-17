@@ -1,0 +1,4 @@
+# Keep Unix line endings so scripts run on the Linux GPU box and in the sandbox image.
+* text=auto eol=lf
+*.db binary
+*.graphml binary

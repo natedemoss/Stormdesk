@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StormDesk</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314161a'/%3E%3Cpath d='M8 22h16M8 16h10M8 10h16' stroke='%23d9480f' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="ident">
+      <span class="mark" aria-hidden="true"></span>
+      <b>StormDesk</b>
+      <span class="sep">/</span>
+      <span id="county">Western NC EOC</span>
+    </div>
+    <dl class="status" id="status"></dl>
+    <div class="bar-right">
+      <button class="bar-btn" id="reset" title="Clear reports and drafts, then reload the demo reports">Reset demo</button>
+      <label class="check" title="Schema and ordering checks before every tool call">
+        <input type="checkbox" id="guard" checked> Guard
+      </label>
+      <span class="clock" id="clock"></span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="col queue">
+      <div class="col-head">
+        <h2>Incoming reports</h2>
+        <span class="meta" id="queue-meta"></span>
+      </div>
+      <ol class="rows" id="rows"></ol>
+      <form class="compose" id="compose">
+        <div class="compose-head">
+          <label for="report-text">New report</label>
+          <select id="channel" aria-label="Channel">
+            <option value="sms">SMS</option><option value="call">Call</option>
+            <option value="social">Social</option><option value="radio">Radio</option>
+          </select>
+        </div>
+        <textarea id="report-text" rows="2" placeholder="Paste or type a report"></textarea>
+        <button class="btn" type="submit">Triage</button>
+      </form>
+    </section>
+
+    <section class="col mapcol">
+      <div class="incident" id="incident" hidden></div>
+      <div class="mapbox">
+        <svg id="map" class="map" role="img" aria-label="Route map"></svg>
+        <div class="route-card" id="route-card" hidden></div>
+        <div class="legend">
+          <span><i class="k-route"></i>Planned route</span>
+          <span><i class="k-blocked"></i>Direct route, blocked</span>
+          <span><i class="k-closed"></i>Closed road</span>
+          <span><i class="k-unv"></i>Reported, unverified</span>
+          <span><i class="k-shelter"></i>Shelter</span>
+          <span><i class="k-pot"></i>Potential shelter</span>
+        </div>
+        <div class="attrib" id="attrib"></div>
+      </div>
+    </section>
+
+    <section class="col side">
+      <nav class="tabs" role="tablist">
+        <button role="tab" class="on" data-tab="agent">Agent</button>
+        <button role="tab" data-tab="sandbox">Sandbox <span class="tab-flag" id="sandbox-flag"></span></button>
+      </nav>
+      <div class="pane" id="pane-agent"></div>
+      <div class="pane" id="pane-sandbox" hidden></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

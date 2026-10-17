@@ -35,6 +35,10 @@ timeout. The current 0.918 is with explicit retry rules and a harder mix that in
   first tool call 0.42 s, about 9 s from report to draft.
 - **Recovery:** `python eval/run_eval.py --faults 0.3` fails about 1 in 3 tool calls on purpose (timeouts,
   a locked database, bad data). The console's **Faults** switch shows it live.
+- **Working a backlog:** the console's **Work queue** button runs the agent on every open report at
+  once (`POST /api/queue/run`, 6 in parallel; vLLM batches the requests) and shows a live progress bar
+  and a summary (drafts, reports that need a location, no dispatch). Each result is still a draft for
+  a dispatcher.
 
 ### Checking its own work, bad data, and graceful fallback
 

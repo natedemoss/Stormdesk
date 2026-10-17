@@ -11,6 +11,7 @@ import queue
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 
@@ -179,6 +180,59 @@ def run_agent(iid: int, guard: bool = True, faults: float = 0.0, outage: str = "
             q.put({"type": "error", "error": f"{type(e).__name__}: {e}"})
         q.put(None)
 
+    threading.Thread(target=work, daemon=True).start()
+
+    def stream():
+        while (msg := q.get()) is not None:
+            yield json.dumps(msg) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+def outcome(res) -> str:
+    """How one run ended, for the queue summary."""
+    if res["drafted"]:
+        return "drafted"
+    geo = next((t["result"] for t in res["trace"] if t["tool"] == "geocode_location"
+                and "error" not in t["result"]), None)
+    if geo is not None and not geo.get("found"):
+        return "location"  # asked the reporter for a place
+    if not res["trace"]:
+        return "declined"  # no responder needed (noise, advisories, injected instructions)
+    return "no_draft"
+
+
+@app.post("/api/queue/run")
+def work_queue(guard: bool = True, faults: float = 0.0, outage: str = "", workers: int = 6):
+    """Runs the agent on every open report at once and streams one line as each finishes.
+    vLLM batches the parallel requests, so the whole backlog takes about as long as a few
+    single runs. Every result is still only a draft waiting for a dispatcher."""
+    faults = min(max(faults, 0.0), 0.5)
+    if outage and outage not in agent.OUTAGES:
+        raise HTTPException(400, f"outage must be one of {list(agent.OUTAGES)}")
+    open_ids = [i["id"] for i in rows("SELECT * FROM incidents WHERE status='new' ORDER BY urgency DESC, id")
+                if not hidden(i)]
+    q = queue.Queue()
+
+    def one(iid):
+        q.put({"type": "start", "id": iid})
+        try:
+            if MOCK_LLM:
+                time.sleep(0.6 + (iid % 5) * 0.35)  # the scripted agent is instant; pace it like a model
+            res = agent.run(iid, use_guard=guard, fault_rate=faults, outage=outage or None)
+            q.put({"type": "done", "id": iid, "outcome": outcome(res), "seconds": res["seconds"],
+                   "calls": len(res["trace"])})
+        except Exception as e:  # one failed report must not stop the rest
+            q.put({"type": "done", "id": iid, "outcome": "error", "error": f"{type(e).__name__}: {e}"})
+
+    def work():
+        t0 = time.time()
+        with ThreadPoolExecutor(max(1, min(workers, 12))) as pool:
+            list(pool.map(one, open_ids))
+        q.put({"type": "summary", "total": len(open_ids), "seconds": round(time.time() - t0, 1)})
+        q.put(None)
+
+    q.put({"type": "begin", "total": len(open_ids)})
     threading.Thread(target=work, daemon=True).start()
 
     def stream():

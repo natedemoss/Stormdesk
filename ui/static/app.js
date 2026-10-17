@@ -174,7 +174,8 @@ function renderQueue() {
     const arrived = !first && !S.known.has(i.id);
     // first load: cards rise in one after another (only the first dozen, so it stays quick)
     const intro = first && n < 12 ? ` intro" style="--i:${n}` : "";
-    return `<li class="row u${i.urgency}${i.id === S.selected ? " sel" : ""}${closed ? " closed" : ""}${arrived ? " arrived" : ""}${intro}" data-id="${i.id}">
+    const working = S.qrun?.working.has(i.id) ? " working" : "";
+    return `<li class="row u${i.urgency}${i.id === S.selected ? " sel" : ""}${closed ? " closed" : ""}${arrived ? " arrived" : ""}${working}${intro}" data-id="${i.id}">
       <span class="urg">${i.urgency}</span>
       <div>
         <div class="row-top"><span class="row-cat">${esc(CATS[i.category] || i.category)}</span><span>${hhmm(i.created_at)}</span></div>
@@ -708,11 +709,66 @@ $("#compose").addEventListener("submit", async (e) => {
   await refresh();
 });
 
+// ------------------------------------------------------------------ work the whole queue
+// Runs the agent on every open report at once (the server runs them in parallel and vLLM batches
+// them), with a live progress bar; rows being worked pulse, and turn DRAFTED as they finish.
+const OUTCOME = { drafted: "drafts", location: "need a location", declined: "no dispatch", no_draft: "no draft", error: "errors" };
+function renderQrun() {
+  const q = S.qrun, box = $("#qrun");
+  if (!q) { box.hidden = true; return; }
+  box.hidden = false;
+  const secs = ((q.end || Date.now()) - q.t0) / 1000;
+  const pct = q.total ? Math.round((q.done / q.total) * 100) : 100;
+  const parts = Object.entries(q.counts).filter(([, n]) => n).map(([k, n]) => `<b>${n}</b> ${OUTCOME[k] || k}`);
+  box.innerHTML = q.end
+    ? `<div class="qline done"><span><b>${q.total}</b> reports in <b>${secs.toFixed(0)} s</b></span><span>${parts.join(" · ") || "nothing open"}</span></div>`
+    : `<div class="qbar"><i style="width:${pct}%"></i></div>
+       <div class="qline"><span>Working <b>${q.done}</b> of <b>${q.total}</b> · ${q.working.size} in parallel</span><span>${secs.toFixed(0)} s</span></div>`;
+}
+$("#work-queue").addEventListener("click", async () => {
+  if (S.qrun && !S.qrun.end) return;
+  const btn = $("#work-queue");
+  btn.disabled = true; btn.textContent = "Working";
+  S.qrun = { total: 0, done: 0, counts: {}, working: new Set(), t0: Date.now(), end: null };
+  const tick = setInterval(renderQrun, 250);
+  try {
+    const r = await fetch(`/api/queue/run?guard=${$("#guard").checked}&faults=${$("#faults").checked ? 0.3 : 0}&outage=${$("#outage").value}`, { method: "POST" });
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const msg = JSON.parse(buf.slice(0, nl)); buf = buf.slice(nl + 1);
+        if (msg.type === "begin") S.qrun.total = msg.total;
+        if (msg.type === "start") S.qrun.working.add(msg.id);
+        if (msg.type === "done") {
+          S.qrun.working.delete(msg.id); S.qrun.done++;
+          S.qrun.counts[msg.outcome] = (S.qrun.counts[msg.outcome] || 0) + 1;
+        }
+        if (msg.type === "summary") S.qrun.end = S.qrun.t0 + msg.seconds * 1000;
+        if (msg.type !== "begin") refresh().catch(() => {});
+        renderQrun(); renderQueue();
+      }
+    }
+    S.qrun.end ??= Date.now();
+    const d = S.qrun.counts.drafted || 0;
+    toast(`Queue worked: ${d} draft${d === 1 ? "" : "s"} waiting for a dispatcher.`, 5000);
+  } catch (e) { toast(`Work queue failed: ${e.message}`, 6000); if (S.qrun) S.qrun.end = Date.now(); }
+  clearInterval(tick);
+  S.qrun.working.clear();
+  btn.disabled = false; btn.textContent = "Work queue";
+  await refresh(); renderQrun(); renderQueue();
+  if (S.selected && !S.running) await select(S.selected);  // show the selected report's new draft
+});
+
 // Two clicks, so a stray click at the hack fair table can't wipe a run in progress.
 let resetArmed = null;
 $("#reset").addEventListener("click", async () => {
   const btn = $("#reset");
-  if (S.running) { toast("Wait for the agent to finish."); return; }
+  if (S.running || (S.qrun && !S.qrun.end)) { toast("Wait for the agent to finish."); return; }
   if (!resetArmed) {
     btn.textContent = "Click again to reset"; btn.classList.add("armed");
     resetArmed = setTimeout(() => { resetArmed = null; btn.textContent = "Reset demo"; btn.classList.remove("armed"); }, 3000);
@@ -723,7 +779,7 @@ $("#reset").addEventListener("click", async () => {
   try {
     const r = await api("/api/demo/reset", { method: "POST" });
     S.selected = null; S.trace = []; S.draft = null; S.final = ""; S.stats = null;
-    S.known.clear(); S.queueHTML = "";
+    S.known.clear(); S.queueHTML = ""; S.qrun = null; renderQrun();
     await refresh(); renderIncident(); renderAgent(); drawMap();
     toast(`Demo reset: ${r.loaded_reports} reports loaded.`);
   } catch (e) { toast(`Reset failed: ${e.message}`, 6000); }

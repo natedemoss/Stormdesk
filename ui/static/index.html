@@ -50,7 +50,9 @@
       <div class="col-head">
         <h2>Incoming reports</h2>
         <span class="meta" id="queue-meta"></span>
+        <button class="btn signal qbtn" id="work-queue" type="button" title="Run the agent on every open report at once; each result is a draft for a dispatcher">Work queue</button>
       </div>
+      <div class="qrun" id="qrun" hidden></div>
       <ol class="rows" id="rows"></ol>
       <form class="compose" id="compose">
         <div class="compose-head">

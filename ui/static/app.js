@@ -232,15 +232,14 @@ async function roadsFor(v) {
   }
   return S.roadsCache.get(key);
 }
-function drawRoads(P, roads) {  // casings first, then fills, so crossings read like a printed road map
+function drawRoads(P, roads) {
   const d = ["", "", ""];
   for (const [a, b, c, e, cls] of roads.segments) {
     const [x1, y1] = P(a, b), [x2, y2] = P(c, e);
     d[cls ?? 2] += `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
   }
   const g = $("#roads");
-  if (g) g.innerHTML = `<path class="r2c" d="${d[2]}"/><path class="r1c" d="${d[1]}"/><path class="r0c" d="${d[0]}"/>`
-    + `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/>`;
+  if (g) g.innerHTML = `<path class="r2" d="${d[2]}"/><path class="r1" d="${d[1]}"/><path class="r0" d="${d[0]}"/><path class="r0c" d="${d[0]}"/>`;
 }
 const pathD = (P, coords) => "M" + coords.map((c) => P(c[0], c[1]).map((n) => n.toFixed(1)).join(" ")).join("L");
 

@@ -166,14 +166,10 @@ textarea:focus, select:focus { border-color: var(--ink); }
 .map-zoom button + button { border-top: 1px solid var(--rule-2); }
 .map-zoom button:hover { background: var(--rule-2); }
 .map-zoom .fit { width: auto; padding: 0 4px; font-size: 11px; }
-/* roads: a casing under a fill, like a printed road map. r2 local, r1 collector, r0 highway */
-.map .r2c, .map .r1c, .map .r0c, .map .r2, .map .r1, .map .r0 { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.map .r2c { stroke: #cdc6b8; stroke-width: 2.2; }
-.map .r2 { stroke: #fdfcf8; stroke-width: 1.1; }
-.map .r1c { stroke: #c4ad6a; stroke-width: 3.8; }
-.map .r1 { stroke: #f7eeb8; stroke-width: 2.4; }
-.map .r0c { stroke: #b9874a; stroke-width: 5.6; }
-.map .r0 { stroke: #f2c88a; stroke-width: 3.8; }
+.map .r2 { stroke: #babdb1; stroke-width: .9; fill: none; }
+.map .r1 { stroke: #9a9e91; stroke-width: 1.7; fill: none; }
+.map .r0 { stroke: #767a6c; stroke-width: 3; fill: none; }
+.map .r0c { stroke: #f6f4ec; stroke-width: 1.2; fill: none; }
 /* a soft blue halo under the route (an SVG filter here stopped Chrome from drawing the route) */
 .map .route-glow { stroke: rgba(31, 79, 209, .18); stroke-width: 16; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .map .route-case { stroke: #fff; stroke-width: 9; fill: none; stroke-linecap: round; stroke-linejoin: round; }

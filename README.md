@@ -136,3 +136,5 @@ The synced cache (`data/stormdesk.db`, `data/cache/`) holds real public data.
 Code, eval tasks and the Gym environment: MIT (see `LICENSE`).
 The triage model weights are CC BY-NC-SA 4.0 because they are trained on HumAID, which uses that license (see `training/MODEL_CARD.md`).
 Synced map and road data keep their sources' terms (OpenStreetMap is ODbL).
+
+Nathan DeMoss

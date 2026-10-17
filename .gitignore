@@ -14,3 +14,5 @@ cache/
 training/data_6k/
 eval/results.json
 PLAN.md
+BREV_DAY.md
+CLAUDE.md

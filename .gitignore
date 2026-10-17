@@ -21,3 +21,4 @@ training/data_agent/
 eval/results_faults.json
 data/trace.db
 eval/results_outage_*.json
+HANDOFF.md

@@ -18,3 +18,4 @@ BREV_DAY.md
 CLAUDE.md
 data/train.db*
 training/data_agent/
+eval/results_faults.json
